@@ -557,6 +557,7 @@ The main idea is to make pandas exploration faster while still keeping the logic
 
 - Uploaded datasets are temporary and stored only in RAM.
 - The app does not create a permanent upload folder.
+- The public demo runs on a free Render instance, so very large datasets or heavy chart operations may hit memory limits.
 - Users should export results before leaving the app.
 - If the server restarts or redeploys, uploaded datasets are cleared.
 - Inactive datasets are removed after 2 hours.
