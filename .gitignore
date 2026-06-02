@@ -1,0 +1,46 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+
+# Flask/runtime files
+instance/
+*.log
+*.pid
+
+# Local uploads/exports, if created during testing
+uploads/
+exports/
+*.csv
+*.xlsx
+*.xls
+!requirements.txt
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Render/local deployment metadata
+.render/

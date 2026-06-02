@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Panda — No-Code Pandas Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ══════════════════════════════════════════════════
+   PANDA CSS — Deep-space analytical theme
+   ══════════════════════════════════════════════════ */
+:root{
+  --bg:#0b0b11;--bg2:#10101a;--bg3:#16161f;--bg4:#1d1d2b;
+  --border:#252535;--border2:#2e2e44;
+  --text:#d4d4e8;--muted:#7878a0;--dim:#4a4a6a;
+  --accent:#7c6af7;--asoft:rgba(124,106,247,.12);--aglow:rgba(124,106,247,.25);
+  --pink:#e05c8a;--green:#3ec9a7;--amber:#f5c842;--red:#e05c5c;
+  --r:8px;--rl:14px;
+  --ui:'Syne',sans-serif;--mono:'DM Mono',monospace;--body:'Inter',sans-serif;
+  --t:180ms ease;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14px;
+  line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ── Header ─────────────────────────────────────── */
+.hdr{position:sticky;top:0;z-index:100;display:flex;align-items:center;
+  justify-content:space-between;padding:0 28px;height:52px;
+  background:rgba(11,11,17,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--ui);
+  font-size:20px;font-weight:800;color:var(--text);text-decoration:none;
+  letter-spacing:-.5px;cursor:pointer}
+.hdr-nav{display:flex;align-items:center;gap:20px}
+.nav-link{font-size:13px;font-family:var(--ui);font-weight:600;color:var(--muted);
+  text-decoration:none;cursor:pointer;transition:color var(--t)}
+.nav-link:hover{color:var(--text)}
+.nav-link.danger:hover{color:var(--red)}
+
+/* ── Pages ──────────────────────────────────────── */
+.page{display:none;min-height:calc(100vh - 52px)}
+.page.active{display:flex}
+
+/* ── Landing ────────────────────────────────────── */
+#landing{flex-direction:column;align-items:center;justify-content:center;
+  position:relative;overflow:hidden}
+.hero-bg{position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 30%,
+    rgba(124,106,247,.08) 0%,rgba(224,92,138,.04) 60%,transparent 100%);
+  pointer-events:none}
+.hero{position:relative;display:flex;flex-direction:column;align-items:center;
+  text-align:center;padding:60px 24px;max-width:700px;width:100%}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:2.5px;
+  text-transform:uppercase;color:var(--accent);margin-bottom:18px}
+.hero-title{font-family:var(--ui);font-size:clamp(52px,8vw,86px);font-weight:800;
+  line-height:1.0;letter-spacing:-3px;color:#fff;margin-bottom:20px}
+.hero-sub{font-size:15px;line-height:1.7;color:var(--muted);margin-bottom:40px}
+.upload-zone{width:100%;max-width:500px;border:1.5px dashed var(--border2);
+  border-radius:var(--rl);padding:40px 28px;cursor:pointer;background:var(--bg2);
+  transition:border-color var(--t),background var(--t);
+  display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:24px}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:var(--asoft)}
+.upload-icon{font-size:28px;margin-bottom:4px}
+.upload-label{font-family:var(--ui);font-weight:600;font-size:15px;color:var(--text)}
+.upload-sub{font-size:12px;color:var(--muted)}
+.upload-status{display:flex;align-items:center;gap:12px;margin-bottom:24px;
+  font-family:var(--mono);font-size:13px}
+.spinner{width:16px;height:16px;border:2px solid var(--border2);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.resume-bar{display:flex;align-items:center;gap:16px;background:var(--asoft);
+  border:1px solid var(--aglow);border-radius:var(--r);padding:12px 20px;
+  margin-bottom:28px;font-size:13px}
+.pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;list-style:none;margin-top:10px}
+.pills li{font-family:var(--mono);font-size:11px;padding:4px 12px;
+  border:1px solid var(--border2);border-radius:100px;color:var(--muted)}
+
+/* ── Buttons ─────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;
+  padding:8px 18px;border-radius:var(--r);font-family:var(--ui);font-weight:600;
+  font-size:13px;cursor:pointer;border:none;text-decoration:none;
+  transition:opacity var(--t),transform var(--t)}
+.btn:hover{opacity:.88;transform:translateY(-1px)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-run{background:var(--accent);color:#fff;width:100%;padding:10px;font-size:14px;margin-top:6px}
+.btn-export{background:var(--bg3);color:var(--muted);border:1px solid var(--border2);
+  padding:5px 14px;font-size:12px;border-radius:var(--r);cursor:pointer;
+  font-family:var(--ui);font-weight:600;transition:all var(--t)}
+.btn-export:hover{color:var(--text);border-color:var(--accent)}
+
+/* ── Workspace ───────────────────────────────────── */
+#workspace{flex-direction:row;height:calc(100vh - 52px);overflow:hidden}
+
+/* Sidebar */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;width:220px;flex-shrink:0}
+.sb-file{display:flex;align-items:center;gap:8px;padding:14px 16px;
+  border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;
+  color:var(--muted);background:var(--bg3);overflow:hidden}
+.sb-fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-nav{padding:8px 0 24px}
+.op-section{font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:2px;color:var(--dim);padding:14px 16px 4px}
+.op-btn{display:flex;align-items:center;justify-content:space-between;
+  width:100%;padding:7px 16px;background:none;border:none;
+  text-align:left;font-family:var(--body);font-size:13px;color:var(--muted);
+  cursor:pointer;transition:background var(--t),color var(--t);
+  border-left:2px solid transparent}
+.op-btn:hover{background:var(--bg3);color:var(--text)}
+.op-btn.active{background:var(--asoft);color:var(--accent);
+  border-left-color:var(--accent);font-weight:500}
+.op-badge{font-size:9px;background:var(--accent);color:#fff;
+  padding:1px 6px;border-radius:100px;font-family:var(--mono)}
+
+/* Main panel */
+.main-panel{display:flex;flex-direction:column;flex:1;overflow:hidden;background:var(--bg)}
+
+/* Selection bar */
+.sel-bar{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;
+  padding:10px 20px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.sel-group{display:flex;flex-direction:column;gap:4px}
+.sel-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:1.5px;color:var(--dim)}
+.sel-input{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);
+  color:var(--text);font-family:var(--body);font-size:12px;padding:5px 10px;
+  outline:none;transition:border-color var(--t)}
+.sel-input:focus{border-color:var(--accent)}
+.sel-input[multiple]{min-width:180px;padding:4px 6px}
+.sel-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* Params */
+.params{padding:12px 20px 0;flex-shrink:0;background:var(--bg);
+  border-bottom:1px solid var(--border)}
+.params-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;padding-bottom:12px}
+.p-group{display:flex;flex-direction:column;gap:4px}
+.p-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:1.5px;color:var(--dim)}
+.p-input{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);
+  color:var(--text);font-family:var(--body);font-size:13px;padding:7px 10px;
+  outline:none;min-width:140px;transition:border-color var(--t)}
+.p-input:focus{border-color:var(--accent)}
+
+/* Group level builder */
+.group-levels{display:flex;flex-direction:column;gap:5px;min-width:180px}
+.group-level{display:flex;align-items:center;gap:6px}
+.group-level .p-input{min-width:160px;flex:1}
+.rm-group-btn{background:rgba(224,92,92,.10);border:1px solid rgba(224,92,92,.18);
+  color:var(--red);border-radius:var(--r);padding:5px 9px;cursor:pointer;
+  font-size:11px;transition:all var(--t)}
+.rm-group-btn:hover{background:rgba(224,92,92,.22)}
+.add-group-btn{display:inline-flex;align-items:center;gap:5px;
+  background:var(--asoft);border:1px solid var(--aglow);
+  color:var(--accent);border-radius:var(--r);padding:5px 12px;cursor:pointer;
+  font-family:var(--ui);font-size:12px;font-weight:600;margin-top:4px;
+  transition:all var(--t)}
+.add-group-btn:hover{background:rgba(124,106,247,.2)}
+
+/* Calculation checkboxes */
+.calc-checks{display:flex;flex-wrap:wrap;gap:6px}
+.calc-checks label{display:flex;align-items:center;gap:5px;
+  background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);
+  padding:5px 11px;cursor:pointer;font-size:12px;color:var(--muted);
+  transition:all var(--t);white-space:nowrap;user-select:none}
+.calc-checks label:hover{border-color:var(--accent);color:var(--text)}
+.calc-checks input[type=checkbox]{accent-color:var(--accent);cursor:pointer}
+.calc-checks label:has(input:checked){border-color:var(--accent);
+  background:var(--asoft);color:var(--accent)}
+
+/* Result */
+.result{flex:1;overflow-y:auto;padding:20px}
+.placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;color:var(--dim);gap:12px;text-align:center;line-height:1.8}
+.ph-icon{font-size:36px;opacity:.4}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
+  padding:20px;margin-bottom:14px}
+.card h3{font-family:var(--ui);font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1px;color:var(--muted);margin-bottom:14px}
+.card-chart img{width:100%;border-radius:var(--r);border:1px solid var(--border);
+  max-height:320px;object-fit:contain}
+
+/* Stats grid */
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:14px}
+.st{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:11px 14px}
+.st-lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:1.5px;color:var(--dim);margin-bottom:4px}
+.st-val{font-family:var(--mono);font-size:17px;font-weight:500;color:var(--text)}
+.v-accent{color:var(--accent)}.v-pink{color:var(--pink)}.v-green{color:var(--green)}.v-amber{color:var(--amber)}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:100px;
+  font-family:var(--mono);font-size:11px}
+.b-purple{background:rgba(124,106,247,.15);color:var(--accent)}
+.b-pink{background:rgba(224,92,138,.15);color:var(--pink)}
+.b-green{background:rgba(62,201,167,.15);color:var(--green)}
+.b-amber{background:rgba(245,200,66,.15);color:var(--amber)}
+.b-red{background:rgba(224,92,92,.15);color:var(--red)}
+
+/* Tables */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)}
+table.panda-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+table.panda-table th{background:var(--bg3);color:var(--muted);padding:8px 12px;
+  text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-weight:500}
+table.panda-table td{padding:7px 12px;border-bottom:1px solid var(--border);
+  color:var(--text);white-space:nowrap}
+table.panda-table tr:last-child td{border-bottom:none}
+table.panda-table tr:hover td{background:var(--bg3)}
+.raw-tbl{overflow-x:auto}
+.raw-tbl table{border-collapse:collapse;font-family:var(--mono);font-size:12px;width:100%}
+.raw-tbl th{background:var(--bg3);color:var(--muted);padding:7px 12px;
+  border:1px solid var(--border);text-align:right}
+.raw-tbl th:first-child{text-align:left}
+.raw-tbl td{padding:6px 12px;border:1px solid var(--border);color:var(--text);text-align:right}
+.raw-tbl td:first-child{text-align:left;color:var(--muted)}
+.raw-tbl tr:hover td{background:var(--bg3)}
+
+/* Export bar */
+.export-bar{display:flex;align-items:center;gap:8px;margin-top:10px}
+.export-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:1.5px;color:var(--dim)}
+
+/* Code panel */
+.code-panel{margin-top:10px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.code-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:8px 14px;
+  background:var(--bg3);border:none;color:var(--muted);cursor:pointer;
+  font-family:var(--mono);font-size:11px;text-align:left;transition:color var(--t)}
+.code-toggle:hover{color:var(--accent)}
+.code-arrow{display:inline-block;transition:transform var(--t)}
+.code-toggle.open .code-arrow{transform:rotate(90deg)}
+.code-block{display:none;padding:12px 16px;background:var(--bg);
+  font-family:var(--mono);font-size:12px;color:var(--green);
+  white-space:pre-wrap;line-height:1.7;border-top:1px solid var(--border)}
+.code-block.visible{display:block}
+
+/* Corr pairs */
+.cpair{display:flex;justify-content:space-between;align-items:center;
+  padding:6px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px}
+.cpair:last-child{border-bottom:none}
+
+/* Slice filter rows */
+.filter-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.filter-row select,.filter-row input{background:var(--bg3);border:1px solid var(--border2);
+  border-radius:var(--r);color:var(--text);font-family:var(--body);font-size:12px;
+  padding:5px 9px;outline:none}
+.filter-row select:focus,.filter-row input:focus{border-color:var(--accent)}
+.rm-btn{background:rgba(224,92,92,.10);border:1px solid rgba(224,92,92,.18);
+  color:var(--red);border-radius:var(--r);padding:4px 9px;cursor:pointer;font-size:12px}
+.add-filter-btn{background:var(--asoft);border:1px solid var(--aglow);
+  color:var(--accent);border-radius:var(--r);padding:6px 14px;cursor:pointer;
+  font-family:var(--ui);font-size:12px;font-weight:600}
+
+/* Loading / error */
+.loading{display:flex;align-items:center;gap:12px;padding:32px;
+  font-family:var(--mono);font-size:13px;color:var(--muted)}
+.err{background:rgba(224,92,92,.08);border:1px solid rgba(224,92,92,.25);
+  border-radius:var(--r);padding:14px 18px;color:var(--red);
+  font-family:var(--mono);font-size:13px}
+
+/* Optgroup */
+select optgroup{color:var(--dim);font-style:normal;font-size:10px}
+select option{color:var(--text);background:var(--bg3)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+
+/* Util */
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt14{margin-top:14px}
+.flex-row{display:flex;gap:10px;flex-wrap:wrap}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}}
+
+/* ── Guide Panel ─────────────────────────────────────────────────── */
+.guide-panel{background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.guide-toggle{display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 20px;background:none;border:none;color:var(--muted);
+  cursor:pointer;font-family:var(--mono);font-size:11px;text-align:left;
+  transition:color var(--t);letter-spacing:.5px}
+.guide-toggle:hover{color:var(--accent)}
+.guide-toggle-icon{font-size:13px;transition:transform var(--t)}
+.guide-toggle.open .guide-toggle-icon{transform:rotate(90deg)}
+.guide-body{display:none;padding:0 20px 16px;animation:fadeIn .15s ease}
+.guide-body.visible{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.guide-section{display:flex;flex-direction:column;gap:6px}
+.guide-section-title{font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:2px;color:var(--dim);padding-bottom:4px;
+  border-bottom:1px solid var(--border)}
+.guide-desc{font-size:12px;color:var(--muted);line-height:1.65}
+.guide-tags{display:flex;flex-wrap:wrap;gap:5px}
+.guide-tag{font-family:var(--mono);font-size:10px;padding:3px 9px;
+  border-radius:100px;line-height:1.4}
+.guide-tag.num{background:rgba(124,106,247,.12);color:var(--accent)}
+.guide-tag.cat{background:rgba(62,201,167,.12);color:var(--green)}
+.guide-tag.any{background:rgba(120,120,160,.12);color:var(--muted)}
+.guide-tag.opt{background:rgba(245,200,66,.10);color:var(--amber)}
+.guide-code{font-family:var(--mono);font-size:11px;color:var(--green);
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+  padding:8px 12px;line-height:1.7;white-space:pre-wrap}
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+<header class="hdr">
+  <div class="logo" onclick="goLanding()">
+    <span style="font-size:22px">🐼</span><span>Panda</span>
+  </div>
+  <nav class="hdr-nav" id="hdrNav"></nav>
+</header>
+
+<!-- ══ LANDING ═════════════════════════════════════════════════════ -->
+<div class="page active" id="landing">
+  <div class="hero-bg"></div>
+  <div class="hero">
+    <p class="eyebrow">No-Code Pandas Workbench</p>
+    <h1 class="hero-title">Upload.<br/>Select.<br/>Analyze.</h1>
+    <p class="hero-sub">Group Analysis, Pivot Tables, Correlations, Distributions,<br/>
+      Profiling, Quantiles and more — without writing code.</p>
+
+    <div class="upload-zone" id="uploadZone">
+      <div class="upload-icon">⬆</div>
+      <p class="upload-label">Drop your CSV or Excel file here</p>
+      <p class="upload-sub">or click to browse &nbsp;·&nbsp; max 50 MB</p>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden/>
+    </div>
+
+    <div class="upload-status" id="uploadStatus" style="display:none">
+      <div class="spinner" id="upSpinner"></div>
+      <span id="upText">Uploading…</span>
+    </div>
+
+    <div id="resumeBar" style="display:none" class="resume-bar">
+      <span>You have a dataset loaded.</span>
+      <button class="btn btn-primary" onclick="showWorkspace()">Open Workspace →</button>
+    </div>
+
+    <ul class="pills">
+      <li>Column Profiler</li><li>Group Analysis Studio</li><li>Pivot Tables</li>
+      <li>Correlation Heatmap</li><li>Distribution Analysis</li><li>Quantile Analysis</li>
+      <li>Outlier Detection</li><li>Frequency Analysis</li><li>Skewness &amp; Kurtosis</li>
+      <li>Export CSV / Excel</li><li>Pandas Code Preview</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══ WORKSPACE ═══════════════════════════════════════════════════ -->
+<div class="page" id="workspace">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sb-file"><span>📄</span><span class="sb-fname" id="sbFilename">—</span></div>
+    <nav class="op-nav" id="opNav">
+
+      <p class="op-section">Inspection</p>
+      <button class="op-btn active" data-op="overview">Dataset Overview</button>
+      <button class="op-btn" data-op="column-profiler">Column Profiler <span class="op-badge">⭐</span></button>
+      <button class="op-btn" data-op="preview">Head / Tail / Sample</button>
+      <button class="op-btn" data-op="summary">Statistical Summary</button>
+
+      <p class="op-section">Statistics</p>
+      <button class="op-btn" data-op="central-tendency">Mean / Median / Mode</button>
+      <button class="op-btn" data-op="std-variance">Std Dev &amp; Variance</button>
+      <button class="op-btn" data-op="skewness-kurtosis">Skewness &amp; Kurtosis</button>
+      <button class="op-btn" data-op="quantile">Quantile Analysis</button>
+      <button class="op-btn" data-op="covariance">Covariance</button>
+
+      <p class="op-section">Categorical</p>
+      <button class="op-btn" data-op="value-counts">Value Counts</button>
+      <button class="op-btn" data-op="frequency">Frequency Analysis</button>
+
+      <p class="op-section">Analysis</p>
+      <button class="op-btn" data-op="group-analysis">Group Analysis <span class="op-badge">⭐</span></button>
+      <button class="op-btn" data-op="pivot">Pivot Table</button>
+      <button class="op-btn" data-op="crosstab">Crosstab</button>
+      <button class="op-btn" data-op="correlation">Correlation Studio</button>
+      <button class="op-btn" data-op="ranking">Ranking Analysis</button>
+
+      <p class="op-section">Distribution</p>
+      <button class="op-btn" data-op="distribution">Distribution Analysis</button>
+      <button class="op-btn" data-op="outliers">Outlier Detection</button>
+      <button class="op-btn" data-op="scatter">Scatter Plot</button>
+
+      <p class="op-section">Filter &amp; Sort</p>
+      <button class="op-btn" data-op="slice">Data Slicer</button>
+      <button class="op-btn" data-op="sort">Sort Studio</button>
+
+    </nav>
+  </aside>
+
+  <!-- Main panel -->
+  <div class="main-panel">
+
+    <!-- Selection bar -->
+    <div class="sel-bar">
+      <div class="sel-group">
+        <span class="sel-label">Rows</span>
+        <select class="sel-input" id="selRows" onchange="onRowModeChange()">
+          <option value="all">All Rows</option>
+          <option value="filter">Filter Rows</option>
+          <option value="range">Row Range</option>
+        </select>
+      </div>
+      <div id="selFilterWrap" style="display:none" class="sel-row">
+        <select class="sel-input" id="selFCol" style="min-width:130px"></select>
+        <select class="sel-input" id="selFOp" style="min-width:130px">
+          <option value="eq">= equals</option><option value="ne">≠ not equals</option>
+          <option value="gt">&gt; greater</option><option value="lt">&lt; less</option>
+          <option value="gte">≥ ≥</option><option value="lte">≤ ≤</option>
+          <option value="contains">contains</option><option value="isin">is in (a,b,c)</option>
+        </select>
+        <input class="sel-input" id="selFVal" placeholder="value" style="min-width:100px"/>
+      </div>
+      <div id="selRangeWrap" style="display:none" class="sel-row">
+        <input class="sel-input" id="selRS" placeholder="Start row" type="number" min="0" style="width:110px"/>
+        <input class="sel-input" id="selRE" placeholder="End row"   type="number" min="1" style="width:110px"/>
+      </div>
+      <div class="sel-group">
+        <span class="sel-label">Columns</span>
+        <select class="sel-input" id="selCols" onchange="onColModeChange()">
+          <option value="all">All Columns</option>
+          <option value="select">Select Columns</option>
+        </select>
+      </div>
+      <div id="selColsWrap" style="display:none">
+        <select class="sel-input" id="selColsList" multiple></select>
+      </div>
+    </div>
+
+    <!-- Guide panel -->
+    <div class="guide-panel" id="guidePanel" style="display:none"></div>
+
+    <!-- Params panel -->
+    <div class="params" id="paramsPanel"></div>
+
+    <!-- Result panel -->
+    <div class="result" id="resultPanel">
+      <div class="placeholder">
+        <span class="ph-icon">⚡</span>
+        <p>Select an operation from the sidebar<br/>and configure parameters to run it.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ JAVASCRIPT ══════════════════════════════════════════════════ -->
+<script>
+/* ── State ─────────────────────────────────────────── */
+let S = {
+  hasFile:false, filename:"",
+  allCols:[], numCols:[], catCols:[],
+  recCols:[], otherCols:[],
+  currentOp:"overview",
+};
+
+/* ── Init ──────────────────────────────────────────── */
+async function init(){
+  try{
+    const r=await fetch("/api/columns");
+    if(r.ok){ const d=await r.json(); if(d.all?.length){ loadCols(d); S.hasFile=true; showResume(); updateNav(); } }
+  }catch(e){}
+}
+function loadCols(d){
+  S.allCols=d.all; S.numCols=d.numeric; S.catCols=d.categorical;
+  S.recCols=d.recommended_gb||[];     // group cols (backwards compat)
+  S.recGroupCols=d.recommended_group||d.recommended_gb||[];
+  S.recMetricCols=d.recommended_metric||d.numeric||[];
+  S.otherCols=d.other_cols||[];
+}
+function updateNav(){
+  document.getElementById("hdrNav").innerHTML = S.hasFile
+    ? `<span class="nav-link" onclick="showWorkspace()">Workspace</span>
+       <a class="nav-link danger" href="/clear">Clear Dataset</a>`:"";
+}
+function showResume(){ document.getElementById("resumeBar").style.display="flex"; }
+function goLanding(){
+  document.getElementById("landing").classList.add("active");
+  document.getElementById("workspace").classList.remove("active");
+}
+async function showWorkspace(){
+  if(!S.hasFile)return;
+  document.getElementById("landing").classList.remove("active");
+  document.getElementById("workspace").classList.add("active");
+  document.getElementById("sbFilename").textContent=S.filename||"dataset";
+  populateSelBar();
+  renderParams(S.currentOp);
+}
+
+/* ── Upload ────────────────────────────────────────── */
+const zone=document.getElementById("uploadZone");
+const fileIn=document.getElementById("fileInput");
+const status=document.getElementById("uploadStatus");
+const upSpinner=document.getElementById("upSpinner");
+const upText=document.getElementById("upText");
+
+zone.addEventListener("click",()=>fileIn.click());
+zone.addEventListener("dragover",e=>{e.preventDefault();zone.classList.add("drag");});
+zone.addEventListener("dragleave",()=>zone.classList.remove("drag"));
+zone.addEventListener("drop",e=>{e.preventDefault();zone.classList.remove("drag");if(e.dataTransfer.files[0])doUpload(e.dataTransfer.files[0]);});
+fileIn.addEventListener("change",()=>{if(fileIn.files[0])doUpload(fileIn.files[0]);});
+
+async function doUpload(file){
+  zone.style.display="none"; status.style.display="flex";
+  upText.textContent=`Detecting encoding & loading "${file.name}"…`;
+  const fd=new FormData(); fd.append("file",file);
+  try{
+    const r=await fetch("/upload",{method:"POST",body:fd}); const d=await r.json();
+    if(d.error){uploadErr(d.error);return;}
+    S.filename=d.filename;
+    const cr=await fetch("/api/columns"); const cd=await cr.json();
+    loadCols(cd); S.hasFile=true;
+    upSpinner.style.display="none";
+    upText.textContent=`✓ "${d.filename}" · encoding: ${d.encoding}`;
+    upText.style.color="var(--green)";
+    updateNav(); showResume();
+    setTimeout(showWorkspace,900);
+  }catch(e){uploadErr("Upload failed. Please try again.");}
+}
+function uploadErr(msg){
+  upSpinner.style.display="none"; upText.textContent="✗ "+msg; upText.style.color="var(--red)";
+  setTimeout(()=>{zone.style.display="";status.style.display="none";
+    upSpinner.style.display="";upText.style.color="";},3500);
+}
+
+/* ── Selection bar ─────────────────────────────────── */
+function populateSelBar(){
+  document.getElementById("selFCol").innerHTML=S.allCols.map(c=>`<option>${c}</option>`).join("");
+  document.getElementById("selColsList").innerHTML=S.allCols.map(c=>`<option value="${c}">${c}</option>`).join("");
+}
+function onRowModeChange(){
+  const v=document.getElementById("selRows").value;
+  document.getElementById("selFilterWrap").style.display=v==="filter"?"flex":"none";
+  document.getElementById("selRangeWrap").style.display=v==="range"?"flex":"none";
+}
+function onColModeChange(){
+  document.getElementById("selColsWrap").style.display=
+    document.getElementById("selCols").value==="select"?"":"none";
+}
+function getSel(){
+  const rm=document.getElementById("selRows").value;
+  const cm=document.getElementById("selCols").value; const p={};
+  if(rm==="filter"){ p.filter_col=v("selFCol"); p.filter_op=v("selFOp"); p.filter_val=v("selFVal"); }
+  else if(rm==="range"){ p.row_start=v("selRS"); p.row_end=v("selRE"); }
+  if(cm==="select") p.columns=Array.from(document.getElementById("selColsList").selectedOptions).map(o=>o.value);
+  return p;
+}
+
+/* ── Column select helpers ─────────────────────────── */
+// buildRecOpts removed — recommendation system replaced by Guide Panel
+function buildSelect(id,cols,label){
+  return `<div class="p-group"><span class="p-label">${label}</span>
+    <select class="p-input" id="${id}">${cols.map(c=>`<option>${c}</option>`).join("")}</select></div>`;
+}
+function buildAggSelect(id,label){
+  const AGGS=["mean","sum","count","min","max","median","mode","std","variance"];
+  return `<div class="p-group"><span class="p-label">${label}</span>
+    <select class="p-input" id="${id}">${AGGS.map(a=>`<option value="${a}">${a}</option>`).join("")}</select></div>`;
+}
+function runBtn(label="Run"){
+  return `<div class="p-group" style="align-self:flex-end">
+    <button class="btn btn-run" onclick="runCurrent()" style="min-width:100px">${label}</button></div>`;
+}
+function inp(id,label,ph="",type="text"){
+  return `<div class="p-group"><span class="p-label">${label}</span>
+    <input class="p-input" id="${id}" type="${type}" placeholder="${ph}"/></div>`;
+}
+const NC=()=>S.numCols.length?S.numCols:S.allCols;
+const AC=()=>S.allCols;
+
+/* ── Group Analysis Studio: dynamic group levels ────── */
+let glCount=0;
+function addGroupLevel(){
+  glCount++;
+  const id=`gagl${glCount}`;
+  const div=document.createElement("div");
+  div.className="group-level"; div.id=id;
+  div.innerHTML=`<select class="p-input ga-group-sel" style="min-width:165px">${S.allCols.map(c=>`<option>${c}</option>`).join("")}</select>
+    <button class="rm-group-btn" onclick="removeGroupLevel('${id}')">✕</button>`;
+  document.getElementById("gaGroupLevels").appendChild(div);
+  updateGroupRemoveBtns();
+}
+function removeGroupLevel(id){
+  if(document.querySelectorAll(".group-level").length<=1)return;
+  document.getElementById(id).remove();
+  updateGroupRemoveBtns();
+}
+function updateGroupRemoveBtns(){
+  const all=document.querySelectorAll(".group-level");
+  document.querySelectorAll(".rm-group-btn").forEach(b=>b.style.display=all.length>1?"":"none");
+}
+function getGroupCols(){
+  return Array.from(document.querySelectorAll(".ga-group-sel")).map(s=>s.value).filter(v=>v);
+}
+function getCheckedCalcs(){
+  return Array.from(document.querySelectorAll("#gaCalcs input:checked")).map(i=>i.value);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   ANALYSIS GUIDE — definition · purpose · inputs · output · pandas
+   ══════════════════════════════════════════════════════════════════ */
+const GUIDES = {
+
+  "overview": {
+    def: "A bird's-eye snapshot of the entire dataset — shape, data types, missing values, and memory usage.",
+    purpose: "First step of any analysis. Tells you what you have before you dive deeper.",
+    inputs: [],
+    output: "Row/column count, dtype per column, missing value counts, memory footprint.",
+    pandas: "df.shape\ndf.info()\ndf.isnull().sum()"
+  },
+
+  "column-profiler": {
+    def: "Deep statistical profile of a single column — distribution, spread, and top values.",
+    purpose: "Understand a column before using it in analysis. Catch data quality issues early.",
+    inputs: [
+      {label:"Column", type:"any", note:"Any column — numeric gets stats + histogram; categorical gets value counts"}
+    ],
+    output: "For numeric: mean, median, std, IQR, skew, kurtosis, histogram, boxplot.\nFor categorical: unique count, top 10 values, bar chart.",
+    pandas: "df['col'].describe()\ndf['col'].value_counts()\ndf['col'].skew()"
+  },
+
+  "preview": {
+    def: "Shows the first N, last N, or a random sample of rows from the dataset.",
+    purpose: "Inspect raw data. Verify structure, spot obvious errors, check actual values.",
+    inputs: [
+      {label:"Mode", type:"any", note:"head() · tail() · sample()"},
+      {label:"N Rows", type:"any", note:"Number of rows to display"}
+    ],
+    output: "Raw data table.",
+    pandas: "df.head(10)\ndf.tail(10)\ndf.sample(10)"
+  },
+
+  "summary": {
+    def: "Standard descriptive statistics for all numeric columns at once.",
+    purpose: "Quick range check across the dataset. Spot columns with unexpected min/max or scale issues.",
+    inputs: [],
+    output: "Count, mean, std, min, 25%, 50%, 75%, max per numeric column.",
+    pandas: "df.describe()"
+  },
+
+  "central-tendency": {
+    def: "The three classical 'center' statistics for every numeric column.",
+    purpose: "Compare mean vs median to detect skew. Mode shows the most common value.",
+    inputs: [],
+    output: "Mean, median, and mode for each numeric column.",
+    pandas: "df.mean(numeric_only=True)\ndf.median(numeric_only=True)\ndf.mode(numeric_only=True)"
+  },
+
+  "std-variance": {
+    def: "Measures how spread out values are around the mean.",
+    purpose: "High std = high variability. Coefficient of Variation (CV%) lets you compare spread across columns with different scales.",
+    inputs: [],
+    output: "Std deviation, variance, CV% and a spread rating (Low / Medium / High) per column.",
+    pandas: "df.std(numeric_only=True)\ndf.var(numeric_only=True)"
+  },
+
+  "skewness-kurtosis": {
+    def: "Skewness measures asymmetry of the distribution. Kurtosis measures tail heaviness.",
+    purpose: "Diagnose non-normality before running statistical tests. Many models assume normality.",
+    inputs: [],
+    output: "Skewness (+ = right tail, − = left tail) and kurtosis (+ = heavy tails) per numeric column.",
+    pandas: "df.skew(numeric_only=True)\ndf.kurtosis(numeric_only=True)"
+  },
+
+  "quantile": {
+    def: "Breaks the value range into percentile buckets (P1, P5, P10, P25, P50, P75, P90, P95, P99).",
+    purpose: "Understand value distribution without assuming normality. Essential for detecting extremes and setting thresholds.",
+    inputs: [
+      {label:"Column", type:"num", note:"Must be numeric"}
+    ],
+    output: "Percentile table + bar chart. Q1, median, Q3, and IQR highlighted.",
+    pandas: "df['col'].quantile([.01,.05,.25,.5,.75,.95,.99])"
+  },
+
+  "covariance": {
+    def: "Measures how two numeric variables change together (raw, unstandardized).",
+    purpose: "Precursor to correlation. Positive = both go up together; negative = one rises as the other falls. Scale-sensitive.",
+    inputs: [],
+    output: "Full covariance matrix + ranked pair list.",
+    pandas: "df.cov()"
+  },
+
+  "value-counts": {
+    def: "Frequency table showing how often each unique value appears in a column.",
+    purpose: "Essential for categorical columns. Reveals dominant categories, rare values, and potential data quality issues.",
+    inputs: [
+      {label:"Column", type:"cat", note:"Best for categorical / low-cardinality columns"},
+      {label:"Top N", type:"any", note:"Limit to top N values (default 20)"}
+    ],
+    output: "Count and % per value + bar chart.",
+    pandas: "df['col'].value_counts()\ndf['col'].value_counts(normalize=True)"
+  },
+
+  "frequency": {
+    def: "Like value counts but adds cumulative percentage — a Pareto-style view.",
+    purpose: "See which categories account for 80% of observations (Pareto principle). Great for prioritization.",
+    inputs: [
+      {label:"Column", type:"cat", note:"Best for categorical columns"},
+      {label:"Top N", type:"any", note:"Number of top values"}
+    ],
+    output: "Count, %, and cumulative % per value + dual chart.",
+    pandas: "df['col'].value_counts()\ndf['col'].value_counts(normalize=True).cumsum()"
+  },
+
+  "group-analysis": {
+    def: "Aggregates a numeric metric across one or more categorical group columns.",
+    purpose: "The core of segmentation analysis. Compare performance, averages, or counts across departments, regions, cohorts, products, etc.",
+    inputs: [
+      {label:"Metric", type:"num", note:"The numeric column to aggregate (salary, revenue, tenure, score…)"},
+      {label:"Group By", type:"cat", note:"One or more categorical columns to segment by (department, region, gender…)"},
+      {label:"Calculation", type:"any", note:"mean · sum · count · min · max · median · std · variance · mode"}
+    ],
+    output: "One row per group combination with the chosen aggregations. Bar chart for 1 group, heatmap for 2 groups.",
+    pandas: "df.groupby('Department')['Salary'].mean()\ndf.groupby(['Region','Gender'])['Revenue'].agg(['mean','sum','count'])"
+  },
+
+  "pivot": {
+    def: "Cross-tabulation of two categorical columns with an aggregated numeric value in each cell.",
+    purpose: "Reshape data for comparison at a glance — rows are one category, columns another, values are the metric.",
+    inputs: [
+      {label:"Index (Rows)", type:"cat", note:"Categorical column — becomes row labels"},
+      {label:"Columns", type:"cat", note:"Categorical column — becomes column headers"},
+      {label:"Values", type:"num", note:"Numeric column to aggregate in each cell"},
+      {label:"Aggregation", type:"any", note:"mean · sum · count · min · max"}
+    ],
+    output: "Pivot table matrix. Missing combinations appear as 0.",
+    pandas: "pd.pivot_table(df, index='Dept', columns='Region',\n  values='Sales', aggfunc='mean')"
+  },
+
+  "crosstab": {
+    def: "Frequency table counting co-occurrences of two categorical columns.",
+    purpose: "See how two categories relate — e.g. how many Male vs Female employees per Department. Normalize to get percentages.",
+    inputs: [
+      {label:"Row Column", type:"cat", note:"Categorical column — becomes rows"},
+      {label:"Column", type:"cat", note:"Categorical column — becomes columns"},
+      {label:"Normalize", type:"opt", note:"Optional — convert counts to % of total"}
+    ],
+    output: "Cross-tabulation matrix.",
+    pandas: "pd.crosstab(df['Gender'], df['Department'])\npd.crosstab(df['Gender'], df['Department'], normalize='all')"
+  },
+
+  "correlation": {
+    def: "Measures the linear (or monotonic) relationship between every pair of numeric columns. Range: −1 to +1.",
+    purpose: "Find variables that move together before building models. Detect multicollinearity. Guide feature selection.",
+    inputs: [
+      {label:"Method", type:"any", note:"Pearson (linear) · Spearman (rank-based) · Kendall (concordance)"}
+    ],
+    output: "Correlation heatmap + ranked list of top positive and negative pairs.",
+    pandas: "df.corr(method='pearson')\ndf.corr(method='spearman')"
+  },
+
+  "ranking": {
+    def: "Returns the top-N largest and smallest rows by a numeric column.",
+    purpose: "Quickly surface the best and worst performers — top customers by revenue, bottom products by rating, etc.",
+    inputs: [
+      {label:"Column", type:"num", note:"Numeric column to rank by"},
+      {label:"N", type:"any", note:"Number of top/bottom rows to show"}
+    ],
+    output: "Two tables: top-N largest and top-N smallest rows.",
+    pandas: "df.nlargest(10, 'Salary')\ndf.nsmallest(10, 'Salary')"
+  },
+
+  "distribution": {
+    def: "Visualizes how values in a numeric column are spread across their range.",
+    purpose: "Understand the shape of your data — is it normal, skewed, bimodal? Essential before choosing statistical tests.",
+    inputs: [
+      {label:"Column", type:"num", note:"Must be numeric"}
+    ],
+    output: "Histogram with mean/median/mode markers, skewness, and kurtosis interpretation.",
+    pandas: "df['col'].hist(bins=30)\ndf['col'].skew()\ndf['col'].kurtosis()"
+  },
+
+  "outliers": {
+    def: "Detects values that fall beyond 1.5× the IQR below Q1 or above Q3 (the standard boxplot rule).",
+    purpose: "Identify data entry errors, extreme observations, or genuinely anomalous records before modeling.",
+    inputs: [
+      {label:"Column", type:"num", note:"Must be numeric"}
+    ],
+    output: "Outlier count, percentage, fence values (Q1−1.5·IQR, Q3+1.5·IQR), and boxplot.",
+    pandas: "Q1,Q3=df['col'].quantile([.25,.75])\nIQR=Q3-Q1\ndf[(df['col']<Q1-1.5*IQR)|(df['col']>Q3+1.5*IQR)]"
+  },
+
+  "scatter": {
+    def: "Plots two numeric columns against each other with a linear trend line.",
+    purpose: "Visually check for correlation, clusters, or non-linear relationships between two variables.",
+    inputs: [
+      {label:"X Column", type:"num", note:"Numeric — horizontal axis"},
+      {label:"Y Column", type:"num", note:"Numeric — vertical axis"}
+    ],
+    output: "Scatter plot with trend line + Pearson correlation coefficient (r).",
+    pandas: "df.plot.scatter('col_x', 'col_y')\ndf[['col_x','col_y']].corr()"
+  },
+
+  "slice": {
+    def: "Applies one or more row-level filters to narrow the dataset for analysis.",
+    purpose: "Subset analysis — e.g. only look at churned customers, or orders above $1000, or a specific region.",
+    inputs: [
+      {label:"Filter Rules", type:"any", note:"Column · operator · value. Stack multiple filters."}
+    ],
+    output: "Filtered data table showing matching rows.",
+    pandas: "df[df['Churn']=='Yes']\ndf[(df['Salary']>50000)&(df['Region']=='North')]"
+  },
+
+  "sort": {
+    def: "Orders rows by a column, ascending or descending, and shows the top N results.",
+    purpose: "Quick ranking view without aggregation. See raw records ordered by any field.",
+    inputs: [
+      {label:"Column", type:"any", note:"Any column"},
+      {label:"Direction", type:"any", note:"Ascending ↑ or Descending ↓"},
+      {label:"Show Rows", type:"any", note:"How many rows to display after sorting"}
+    ],
+    output: "Sorted data table.",
+    pandas: "df.sort_values('Salary', ascending=False).head(100)"
+  }
+};
+
+/* tag colours: num=purple  cat=green  any=muted  opt=amber */
+function renderGuide(op){
+  const GP=document.getElementById("guidePanel");
+  const g=GUIDES[op];
+  if(!g){GP.style.display="none";return;}
+  GP.style.display="";
+
+  const tagHtml=(items)=>items.map(i=>{
+    const cls=i.type==="num"?"num":i.type==="cat"?"cat":i.type==="opt"?"opt":"any";
+    return `<span class="guide-tag ${cls}">${i.label}</span>`;
+  }).join("");
+
+  const inputSection = g.inputs.length ? `
+    <div class="guide-section">
+      <div class="guide-section-title">Required Inputs</div>
+      ${g.inputs.map(i=>`
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="guide-tag ${i.type==='num'?'num':i.type==='cat'?'cat':i.type==='opt'?'opt':'any'}">${i.label}</span>
+          </div>
+          <div class="guide-desc" style="padding-left:2px;font-size:11px">${i.note}</div>
+        </div>`).join("")}
+    </div>` : "";
+
+  const legend = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:2px">
+    <span style="font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">Column type:</span>
+    <span class="guide-tag num">Numeric</span>
+    <span class="guide-tag cat">Categorical</span>
+    <span class="guide-tag any">Any</span>
+    <span class="guide-tag opt">Optional</span>
+  </div>`;
+
+  GP.innerHTML=`
+    <button class="guide-toggle" id="guideToggleBtn" onclick="toggleGuide()">
+      <span class="guide-toggle-icon">▶</span>
+      <span style="color:var(--dim)">GUIDE</span>
+      <span style="color:var(--text);font-weight:500;letter-spacing:0">&nbsp;${op.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--dim)">click to expand</span>
+    </button>
+    <div class="guide-body" id="guideBody">
+      <div class="guide-section">
+        <div class="guide-section-title">Definition</div>
+        <div class="guide-desc">${g.def}</div>
+        <div class="guide-section-title" style="margin-top:8px">Purpose</div>
+        <div class="guide-desc">${g.purpose}</div>
+        ${legend}
+      </div>
+      ${inputSection}
+      <div class="guide-section">
+        <div class="guide-section-title">Output</div>
+        <div class="guide-desc">${g.output}</div>
+      </div>
+      <div class="guide-section">
+        <div class="guide-section-title">Pandas Equivalent</div>
+        <div class="guide-code">${g.pandas}</div>
+      </div>
+    </div>`;
+}
+
+function toggleGuide(){
+  const btn=document.getElementById("guideToggleBtn");
+  const body=document.getElementById("guideBody");
+  const open=btn.classList.toggle("open");
+  body.classList.toggle("visible",open);
+  const hint=btn.querySelector("span:last-child");
+  if(hint) hint.textContent=open?"click to collapse":"click to expand";
+}
+
+/* ── Render params ─────────────────────────────────── */
+function renderParams(op){
+  const P=document.getElementById("paramsPanel");
+  const nc=NC(); const ac=AC();
+  renderGuide(op);  // always show guide for current operation
+
+  const CALC_LIST=["count","sum","mean","median","mode","min","max","std","variance"];
+  const DEFAULT_CHECKED=["count","mean","min","max"];
+
+  switch(op){
+    case "overview":
+      P.innerHTML=`<div class="params-form">${runBtn("Load Overview")}</div>`; runCurrent(); break;
+    case "column-profiler":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("cpCol",ac,"Column")}
+        ${runBtn("Profile Column")}</div>`; break;
+    case "preview":
+      P.innerHTML=`<div class="params-form">
+        <div class="p-group"><span class="p-label">Mode</span>
+          <select class="p-input" id="pvMode">
+            <option value="head">head()</option><option value="tail">tail()</option><option value="sample">sample()</option>
+          </select></div>
+        ${inp("pvN","Rows","10","number")}
+        ${runBtn("Preview")}</div>`; break;
+    case "summary":
+      P.innerHTML=`<div class="params-form">${runBtn("Run Summary")}</div>`; runCurrent(); break;
+    case "central-tendency":
+      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
+    case "std-variance":
+      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
+    case "skewness-kurtosis":
+      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
+    case "quantile":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("qtCol",nc,"Column")}
+        ${runBtn("Analyze")}</div>`; break;
+    case "covariance":
+      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
+    case "value-counts":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("vcCol",ac,"Column")}
+        ${inp("vcN","Top N","20","number")}
+        ${runBtn("Run")}</div>`; break;
+    case "frequency":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("freqCol",ac,"Column")}
+        ${inp("freqN","Top N","20","number")}
+        ${runBtn("Analyze")}</div>`; break;
+
+    // ── Group Analysis Studio ──────────────────────────────────────────────
+    case "group-analysis":
+      P.innerHTML=`<div class="params-form" style="align-items:flex-start">
+        ${buildSelect("gaMetric",nc,"Metric")}
+        <div class="p-group">
+          <span class="p-label">Group By</span>
+          <div class="group-levels" id="gaGroupLevels"></div>
+          <button class="add-group-btn" onclick="addGroupLevel()">+ Add Group Level</button>
+        </div>
+        <div class="p-group">
+          <span class="p-label">Calculations</span>
+          <div class="calc-checks" id="gaCalcs">
+            ${CALC_LIST.map(a=>`<label><input type="checkbox" value="${a}"${DEFAULT_CHECKED.includes(a)?' checked':''}/><span>${a}</span></label>`).join("")}
+          </div>
+        </div>
+        ${runBtn("Run Analysis")}
+      </div>`;
+      glCount=0; addGroupLevel(); break;
+    // ────────────────────────────────────────────────────────────────────────
+
+    case "pivot":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("pvIdx",ac,"Index (Rows)")}
+        ${buildSelect("pvCols",ac,"Columns")}
+        ${buildSelect("pvVals",nc,"Values")}
+        ${buildAggSelect("pvAgg","Aggregation")}
+        ${runBtn("Build Pivot")}</div>`; break;
+    case "crosstab":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("ctRow",ac,"Row Column")}
+        ${buildSelect("ctCol",ac,"Column")}
+        <div class="p-group"><span class="p-label">Normalize</span>
+          <select class="p-input" id="ctNorm"><option value="false">No</option><option value="true">Yes (%)</option></select>
+        </div>
+        ${runBtn("Run Crosstab")}</div>`; break;
+    case "correlation":
+      P.innerHTML=`<div class="params-form">
+        <div class="p-group"><span class="p-label">Method</span>
+          <select class="p-input" id="corrM">
+            <option value="pearson">Pearson</option>
+            <option value="spearman">Spearman</option>
+            <option value="kendall">Kendall</option>
+          </select></div>
+        ${runBtn("Run Correlation")}</div>`; break;
+    case "ranking":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("rkCol",nc,"Column")}
+        ${inp("rkN","Top N","10","number")}
+        ${runBtn("Run Ranking")}</div>`; break;
+    case "distribution":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("distCol",nc,"Column")}
+        ${runBtn("Analyze")}</div>`; break;
+    case "outliers":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("outCol",nc,"Column")}
+        ${runBtn("Detect Outliers")}</div>`; break;
+    case "scatter":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("scX",nc,"X Column")}
+        ${buildSelect("scY",nc,"Y Column")}
+        ${runBtn("Plot")}</div>`; break;
+    case "sort":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("sortCol",ac,"Column")}
+        <div class="p-group"><span class="p-label">Direction</span>
+          <select class="p-input" id="sortDir">
+            <option value="true">Ascending ↑</option>
+            <option value="false">Descending ↓</option>
+          </select></div>
+        ${inp("sortN","Show rows","100","number")}
+        ${runBtn("Sort")}</div>`; break;
+    case "slice":
+      P.innerHTML=`<div style="padding-bottom:10px">
+        <div id="filterRows"></div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="add-filter-btn" onclick="addFilter()">+ Add Filter</button>
+          <button class="btn btn-run" style="width:auto;padding:6px 20px" onclick="runCurrent()">Apply Filters</button>
+        </div></div>`;
+      addFilter(); break;
+    default: P.innerHTML=""; break;
+  }
+}
+
+/* ── Sidebar nav ────────────────────────────────────── */
+document.getElementById("opNav").addEventListener("click",e=>{
+  const btn=e.target.closest(".op-btn"); if(!btn)return;
+  document.querySelectorAll(".op-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  S.currentOp=btn.dataset.op;
+  renderParams(S.currentOp);
+});
+
+/* ── Slice filter builder ───────────────────────────── */
+let fc=0;
+function addFilter(){
+  fc++;
+  const id=`fr${fc}`;
+  const cols=S.allCols.map(c=>`<option>${c}</option>`).join("");
+  const row=document.createElement("div"); row.className="filter-row"; row.id=id;
+  row.innerHTML=`
+    <select id="${id}col">${cols}</select>
+    <select id="${id}op">
+      <option value="eq">= equals</option><option value="ne">≠ not equals</option>
+      <option value="gt">&gt; greater</option><option value="lt">&lt; less</option>
+      <option value="gte">≥ ≥</option><option value="lte">≤ ≤</option>
+      <option value="contains">contains</option><option value="isin">is in (a,b,c)</option>
+    </select>
+    <input id="${id}val" placeholder="value" style="min-width:100px"/>
+    <button class="rm-btn" onclick="this.closest('.filter-row').remove()">✕</button>`;
+  document.getElementById("filterRows").appendChild(row);
+}
+function getFilters(){
+  return Array.from(document.querySelectorAll("#filterRows .filter-row"))
+    .map(r=>({col:ge(r.id+"col")?.value, op:ge(r.id+"op")?.value, val:ge(r.id+"val")?.value}))
+    .filter(f=>f.col&&f.val);
+}
+
+/* ── Run operations ─────────────────────────────────── */
+function runCurrent(){ runOp(S.currentOp); }
+
+async function runOp(op){
+  const sel=getSel();
+  const R=document.getElementById("resultPanel");
+  R.innerHTML=`<div class="loading"><div class="spinner"></div>Running ${op}…</div>`;
+
+  try{
+    let url,body;
+    switch(op){
+      case "overview":          url="/api/overview"; body=null; break;
+      case "column-profiler":   url="/api/column-profiler"; body={...sel,column:v("cpCol")}; break;
+      case "preview":           url="/api/preview"; body={...sel,mode:v("pvMode")||"head",n:iv("pvN",10)}; break;
+      case "summary":           url="/api/summary"; body=sel; break;
+      case "central-tendency":  url="/api/central-tendency"; body=sel; break;
+      case "std-variance":      url="/api/std-variance"; body=sel; break;
+      case "skewness-kurtosis": url="/api/skewness-kurtosis"; body=sel; break;
+      case "quantile":          url="/api/quantile"; body={...sel,column:v("qtCol")}; break;
+      case "covariance":        url="/api/covariance"; body=sel; break;
+      case "value-counts":      url="/api/value-counts"; body={...sel,column:v("vcCol"),top_n:iv("vcN",20)}; break;
+      case "frequency":         url="/api/frequency"; body={...sel,column:v("freqCol"),top_n:iv("freqN",20)}; break;
+      case "group-analysis":    url="/api/group-analysis"; body={...sel,metric_col:v("gaMetric"),group_cols:getGroupCols(),calculations:getCheckedCalcs()}; break;
+      case "pivot":             url="/api/pivot"; body={...sel,index:v("pvIdx"),columns:v("pvCols"),values:v("pvVals"),agg:v("pvAgg")}; break;
+      case "crosstab":          url="/api/crosstab"; body={...sel,row_col:v("ctRow"),col_col:v("ctCol"),normalize:v("ctNorm")==="true"}; break;
+      case "correlation":       url="/api/correlation"; body={...sel,method:v("corrM")||"pearson"}; break;
+      case "ranking":           url="/api/ranking"; body={...sel,column:v("rkCol"),n:iv("rkN",10)}; break;
+      case "distribution":      url="/api/distribution"; body={...sel,column:v("distCol")}; break;
+      case "outliers":          url="/api/outliers"; body={...sel,column:v("outCol")}; break;
+      case "scatter":           url="/api/scatter"; body={...sel,x_col:v("scX"),y_col:v("scY")}; break;
+      case "sort":              url="/api/sort"; body={...sel,column:v("sortCol"),ascending:v("sortDir")==="true",n:iv("sortN",100)}; break;
+      case "slice":             url="/api/slice"; body={...sel,filters:getFilters(),n:200}; break;
+      default: R.innerHTML=`<div class="err">Unknown operation.</div>`; return;
+    }
+    const resp = body
+      ? await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+      : await fetch(url);
+    const data=await resp.json();
+    if(data.error){ R.innerHTML=`<div class="err">⚠ ${data.error}</div>`; return; }
+    renderResult(op,data,R);
+  }catch(e){ R.innerHTML=`<div class="err">⚠ Request failed: ${e.message}</div>`; }
+}
+
+/* ── Helpers ─────────────────────────────────────────── */
+const ge=id=>document.getElementById(id);
+function v(id){ const el=ge(id); return el?el.value:""; }
+function iv(id,def){ const n=parseInt(v(id)); return isNaN(n)?def:n; }
+function fmt(n){ if(n===null||n===undefined)return "—"; return typeof n==="number"?n.toLocaleString(undefined,{maximumFractionDigits:4}):n; }
+
+function tbl(rows,cols,limit=500){
+  if(!rows||!rows.length)return`<p style="color:var(--muted);font-size:13px">No data.</p>`;
+  const d=rows.slice(0,limit);
+  return`<div class="tbl-wrap"><table class="panda-table">
+    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead>
+    <tbody>${d.map(r=>`<tr>${cols.map(c=>`<td>${r[c]??""}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table></div>${rows.length>limit?`<p style="color:var(--muted);font-size:12px;margin-top:6px">Showing ${limit} of ${rows.length} rows.</p>`:""}`;
+}
+
+function badge(label){
+  const m={"Right Skewed":"b-amber","Left Skewed":"b-pink","Nearly Symmetric":"b-green",
+    "Heavy Tails":"b-red","Flat Distribution":"b-purple","Normal-like Tails":"b-green",
+    "Low":"b-green","Medium":"b-amber","High":"b-red",
+    "Positive":"b-green","Negative":"b-red","Near Zero":"b-purple"};
+  return`<span class="badge ${m[label]||'b-purple'}">${label}</span>`;
+}
+
+function codePanel(code){
+  if(!code)return"";
+  return`<div class="code-panel">
+    <button class="code-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('visible')">
+      <span class="code-arrow">›</span>&nbsp;Pandas Code
+    </button>
+    <pre class="code-block">${escHtml(code)}</pre>
+  </div>`;
+}
+function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function exportBar(rows,cols,name="result"){
+  if(!rows||!rows.length)return"";
+  // Store for deferred export
+  window._lastExport={rows,cols,name};
+  return`<div class="export-bar">
+    <span class="export-label">Export</span>
+    <button class="btn-export" onclick="exportCSV()">CSV</button>
+    <button class="btn-export" onclick="exportXLSX()">Excel</button>
+  </div>`;
+}
+
+function exportCSV(){
+  const {rows,cols,name}=window._lastExport||{rows:[],cols:[],name:"result"};
+  const csv=[cols.join(","),...rows.map(r=>cols.map(c=>`"${String(r[c]??"").replace(/"/g,'""')}"`).join(","))].join("\n");
+  dl(new Blob([csv],{type:"text/csv"}),`${name}.csv`);
+}
+async function exportXLSX(){
+  const {rows,cols,name}=window._lastExport||{rows:[],cols:[],name:"result"};
+  const resp=await fetch("/api/export-excel",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({rows,cols,filename:name})});
+  if(!resp.ok){alert("Export failed.");return;}
+  dl(await resp.blob(),`${name}.xlsx`);
+}
+function dl(blob,filename){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); }
+
+/* ── Result renderers ────────────────────────────────── */
+function renderResult(op,d,R){
+  switch(op){
+    case "overview":          R.innerHTML=renderOverview(d);      break;
+    case "column-profiler":   R.innerHTML=renderProfiler(d);      break;
+    case "preview":           R.innerHTML=renderPreview(d);       break;
+    case "summary":           R.innerHTML=renderSummary(d);       break;
+    case "central-tendency":  R.innerHTML=renderCT(d);            break;
+    case "std-variance":      R.innerHTML=renderStdVar(d);        break;
+    case "skewness-kurtosis": R.innerHTML=renderSkewKurt(d);      break;
+    case "quantile":          R.innerHTML=renderQuantile(d);      break;
+    case "covariance":        R.innerHTML=renderCov(d);           break;
+    case "value-counts":      R.innerHTML=renderVC(d);            break;
+    case "frequency":         R.innerHTML=renderFrequency(d);     break;
+    case "group-analysis":    R.innerHTML=renderGroupAnalysis(d); break;
+    case "pivot":             R.innerHTML=renderHTMLTable(d,"Pivot Table"); break;
+    case "crosstab":          R.innerHTML=renderHTMLTable(d,"Crosstab");    break;
+    case "correlation":       R.innerHTML=renderCorr(d);          break;
+    case "ranking":           R.innerHTML=renderRanking(d);       break;
+    case "distribution":      R.innerHTML=renderDist(d);          break;
+    case "outliers":          R.innerHTML=renderOutliers(d);      break;
+    case "scatter":           R.innerHTML=renderScatter(d);       break;
+    case "sort":              R.innerHTML=renderSort(d);          break;
+    case "slice":             R.innerHTML=renderSlice(d);         break;
+    default: R.innerHTML=`<pre style="font-size:11px">${JSON.stringify(d,null,2)}</pre>`;
+  }
+}
+
+function renderOverview(d){
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Rows</div><div class="st-val v-accent">${fmt(d.rows)}</div></div>
+    <div class="st"><div class="st-lbl">Columns</div><div class="st-val v-accent">${d.columns}</div></div>
+    <div class="st"><div class="st-lbl">Missing %</div><div class="st-val ${d.missing_pct>0?'v-pink':'v-green'}">${d.missing_pct}%</div></div>
+    <div class="st"><div class="st-lbl">Memory</div><div class="st-val">${d.memory_kb} KB</div></div>
+    <div class="st"><div class="st-lbl">Numeric Cols</div><div class="st-val v-amber">${d.numeric_cols}</div></div>
+    <div class="st"><div class="st-lbl">Text Cols</div><div class="st-val v-amber">${d.object_cols}</div></div>
+  </div>
+  <div class="card"><h3>Column Details</h3>
+    ${tbl(d.col_info,["column","dtype","unique","missing","missing_pct"])}
+    ${exportBar(d.col_info,["column","dtype","unique","missing","missing_pct"],"overview")}
+  </div>
+  ${codePanel(d.code)}`;
+}
+
+function renderProfiler(d){
+  const numStats=d.is_numeric?`
+  <div class="sg mt8">
+    <div class="st"><div class="st-lbl">Mean</div><div class="st-val v-pink">${fmt(d.mean)}</div></div>
+    <div class="st"><div class="st-lbl">Median</div><div class="st-val v-green">${fmt(d.median)}</div></div>
+    <div class="st"><div class="st-lbl">Mode</div><div class="st-val v-amber">${fmt(d.mode)}</div></div>
+    <div class="st"><div class="st-lbl">Std Dev</div><div class="st-val">${fmt(d.std)}</div></div>
+    <div class="st"><div class="st-lbl">Variance</div><div class="st-val">${fmt(d.variance)}</div></div>
+    <div class="st"><div class="st-lbl">Min</div><div class="st-val">${fmt(d.min)}</div></div>
+    <div class="st"><div class="st-lbl">Max</div><div class="st-val">${fmt(d.max)}</div></div>
+    <div class="st"><div class="st-lbl">Q1</div><div class="st-val">${fmt(d.q1)}</div></div>
+    <div class="st"><div class="st-lbl">Q3</div><div class="st-val">${fmt(d.q3)}</div></div>
+    <div class="st"><div class="st-lbl">IQR</div><div class="st-val v-accent">${fmt(d.iqr)}</div></div>
+    <div class="st"><div class="st-lbl">Skewness</div><div class="st-val">${d.skewness}</div></div>
+    <div class="st"><div class="st-lbl">Kurtosis</div><div class="st-val">${d.kurtosis}</div></div>
+  </div>`:`<div class="mt8">${d.top_values?tbl(d.top_values,["value","count","pct"]):""}</div>`;
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Column</div><div class="st-val v-accent">${d.column}</div></div>
+    <div class="st"><div class="st-lbl">Type</div><div class="st-val">${d.dtype}</div></div>
+    <div class="st"><div class="st-lbl">Total</div><div class="st-val">${fmt(d.total)}</div></div>
+    <div class="st"><div class="st-lbl">Missing</div><div class="st-val ${d.missing>0?'v-pink':'v-green'}">${d.missing} (${d.missing_pct}%)</div></div>
+    <div class="st"><div class="st-lbl">Unique</div><div class="st-val">${fmt(d.unique)} (${d.unique_pct}%)</div></div>
+  </div>
+  ${numStats}
+  ${d.chart?`<div class="card mt8 card-chart"><h3>Visual Profile</h3><img src="data:image/png;base64,${d.chart}"/></div>`:""}
+  ${codePanel(d.code)}`;
+}
+
+function renderPreview(d){
+  return`<div class="card"><h3>Preview — ${fmt(d.total)} total rows</h3>
+    ${tbl(d.rows,d.cols)}
+    ${exportBar(d.rows,d.cols,"preview")}
+  </div>${codePanel(d.code)}`;
+}
+
+function renderSummary(d){
+  const keys=["column","count","mean","std","min","25%","50%","75%","max"];
+  return`<div class="card"><h3>Statistical Summary — describe()</h3>
+    ${tbl(d.rows,keys)}
+    ${exportBar(d.rows,keys,"summary")}
+  </div>${codePanel(d.code)}`;
+}
+
+function renderCT(d){
+  return`<div class="card"><h3>Mean / Median / Mode</h3>
+    ${tbl(d.rows,["column","mean","median","mode"])}
+    ${exportBar(d.rows,["column","mean","median","mode"],"central_tendency")}
+  </div>${codePanel(d.code)}`;
+}
+
+function renderStdVar(d){
+  return`<div class="card"><h3>Standard Deviation &amp; Variance</h3>
+    <div class="tbl-wrap"><table class="panda-table">
+      <thead><tr><th>Column</th><th>Mean</th><th>Std Dev</th><th>Variance</th><th>CV %</th><th>Spread</th></tr></thead>
+      <tbody>${d.rows.map(r=>`<tr>
+        <td>${r.column}</td><td>${fmt(r.mean)}</td><td>${fmt(r.std)}</td>
+        <td>${fmt(r.variance)}</td><td>${fmt(r.cv_pct)}</td><td>${badge(r.spread)}</td>
+      </tr>`).join("")}</tbody></table></div>
+    ${exportBar(d.rows,["column","mean","std","variance","cv_pct","spread"],"std_variance")}
+  </div>${codePanel(d.code)}`;
+}
+
+function renderSkewKurt(d){
+  return`<div class="card"><h3>Skewness &amp; Kurtosis</h3>
+    <div class="tbl-wrap"><table class="panda-table">
+      <thead><tr><th>Column</th><th>Skewness</th><th>Shape</th><th>Kurtosis</th><th>Tails</th></tr></thead>
+      <tbody>${d.rows.map(r=>`<tr>
+        <td>${r.column}</td>
+        <td style="font-family:var(--mono)">${r.skewness}</td><td>${badge(r.skew_label)}</td>
+        <td style="font-family:var(--mono)">${r.kurtosis}</td><td>${badge(r.kurt_label)}</td>
+      </tr>`).join("")}</tbody></table></div>
+    ${exportBar(d.rows,["column","skewness","skew_label","kurtosis","kurt_label"],"skewness_kurtosis")}
+  </div>${codePanel(d.code)}`;
+}
+
+function renderQuantile(d){
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Q1 (P25)</div><div class="st-val v-accent">${fmt(d.q1)}</div></div>
+    <div class="st"><div class="st-lbl">Median (P50)</div><div class="st-val v-green">${fmt(d.median)}</div></div>
+    <div class="st"><div class="st-lbl">Q3 (P75)</div><div class="st-val v-accent">${fmt(d.q3)}</div></div>
+    <div class="st"><div class="st-lbl">IQR</div><div class="st-val v-pink">${fmt(d.iqr)}</div></div>
+  </div>
+  <div class="card mt8"><h3>Percentile Table — ${d.column}</h3>
+    ${tbl(d.rows,["percentile","value"])}
+    ${exportBar(d.rows,["percentile","value"],"quantile")}
+  </div>
+  ${d.chart?`<div class="card card-chart"><h3>Chart</h3><img src="data:image/png;base64,${d.chart}"/></div>`:""}
+  ${codePanel(d.code)}`;
+}
+
+function renderCov(d){
+  return`
+  <div class="card"><h3>Top Covariance Pairs</h3>
+    ${d.pairs.map(p=>`<div class="cpair">
+      <span style="color:var(--muted)">${p.col1} × ${p.col2}</span>
+      <span>${badge(p.direction)}&nbsp;<span style="font-family:var(--mono)">${fmt(p.covariance)}</span></span>
+    </div>`).join("")}
+  </div>
+  <div class="card"><h3>Covariance Matrix</h3><div class="raw-tbl">${d.html}</div></div>
+  ${codePanel(d.code)}`;
+}
+
+function renderVC(d){
+  return`
+  <div class="card"><h3>Value Counts — ${d.column}</h3>
+    ${tbl(d.rows,["value","count","pct"])}
+    ${exportBar(d.rows,["value","count","pct"],"value_counts")}
+  </div>
+  <div class="card card-chart"><h3>Chart</h3><img src="data:image/png;base64,${d.chart}"/></div>
+  ${codePanel(d.code)}`;
+}
+
+function renderFrequency(d){
+  return`
+  <div class="card"><h3>Frequency Analysis — ${d.column}</h3>
+    ${tbl(d.rows,["value","count","pct","cum_pct"])}
+    ${exportBar(d.rows,["value","count","pct","cum_pct"],"frequency")}
+  </div>
+  <div class="card card-chart"><h3>Count vs Percentage</h3><img src="data:image/png;base64,${d.chart}"/></div>
+  ${codePanel(d.code)}`;
+}
+
+function renderGroupAnalysis(d){
+  const gcLabel=d.group_cols.join(" + ");
+  const numGroups=d.group_cols.length;
+  // Human-readable label for each calculation
+  function niceCalc(c){ return c==="record_count"?"Record Count":c.charAt(0).toUpperCase()+c.slice(1); }
+  const calcLabel=d.calculations.map(niceCalc).join(", ");
+  // When the only calc is record_count, show "Record Count" instead of the metric column name
+  const isCountOnly=d.calculations.length===1&&d.calculations[0]==="record_count";
+  const metricDisplay=isCountOnly?"Record Count":d.metric_col;
+  const cardTitle=isCountOnly
+    ?`Record Count · grouped by ${gcLabel}`
+    :`${d.metric_col} — ${calcLabel} · grouped by ${gcLabel}`;
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">${isCountOnly?"Count":"Metric"}</div><div class="st-val v-pink">${metricDisplay}</div></div>
+    <div class="st"><div class="st-lbl">Group${numGroups>1?"s":""}</div><div class="st-val v-accent" style="font-size:13px">${gcLabel}</div></div>
+    <div class="st"><div class="st-lbl">Calculations</div><div class="st-val" style="font-size:13px">${calcLabel}</div></div>
+    <div class="st"><div class="st-lbl">Result Rows</div><div class="st-val v-green">${d.rows.length}</div></div>
+  </div>
+  <div class="card mt8"><h3>${cardTitle}</h3>
+    ${tbl(d.rows,d.cols)}
+    ${exportBar(d.rows,d.cols,"group_analysis")}
+  </div>
+  ${d.chart?`<div class="card card-chart"><h3>Chart</h3><img src="data:image/png;base64,${d.chart}"/></div>`:""}
+  ${codePanel(d.code)}`;
+}
+
+function renderHTMLTable(d,title){
+  return`<div class="card"><h3>${title}</h3>
+    <div class="raw-tbl">${d.html}</div>
+  </div>${codePanel(d.code)}`;
+}
+
+function renderCorr(d){
+  const posRows=d.top_positive.map(p=>`<div class="cpair">
+    <span style="color:var(--muted)">${p.col1} × ${p.col2}</span>
+    <span class="badge b-green">${p.corr}</span></div>`).join("");
+  const negRows=d.top_negative.map(p=>`<div class="cpair">
+    <span style="color:var(--muted)">${p.col1} × ${p.col2}</span>
+    <span class="badge b-red">${p.corr}</span></div>`).join("");
+  return`
+  <div class="two-col">
+    <div class="card"><h3>Top Positive Pairs</h3>${posRows||"<p style='color:var(--muted)'>None</p>"}</div>
+    <div class="card"><h3>Top Negative Pairs</h3>${negRows||"<p style='color:var(--muted)'>None</p>"}</div>
+  </div>
+  <div class="card card-chart"><h3>Correlation Heatmap (${d.method})</h3>
+    <img src="data:image/png;base64,${d.chart}"/>
+  </div>${codePanel(d.code)}`;
+}
+
+function renderRanking(d){
+  return`
+  <div class="two-col">
+    <div class="card"><h3>Top ${d.n} Largest — ${d.column}</h3>
+      ${tbl(d.largest,d.cols,d.n)}
+      ${exportBar(d.largest,d.cols,"ranking_top")}
+    </div>
+    <div class="card"><h3>Top ${d.n} Smallest — ${d.column}</h3>
+      ${tbl(d.smallest,d.cols,d.n)}
+      ${exportBar(d.smallest,d.cols,"ranking_bottom")}
+    </div>
+  </div>${codePanel(d.code)}`;
+}
+
+function renderDist(d){
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Mean</div><div class="st-val v-pink">${fmt(d.mean)}</div></div>
+    <div class="st"><div class="st-lbl">Median</div><div class="st-val v-green">${fmt(d.median)}</div></div>
+    <div class="st"><div class="st-lbl">Mode</div><div class="st-val v-amber">${fmt(d.mode)}</div></div>
+    <div class="st"><div class="st-lbl">Std Dev</div><div class="st-val">${fmt(d.std)}</div></div>
+    <div class="st"><div class="st-lbl">Skewness</div><div class="st-val">${d.skewness}</div></div>
+    <div class="st"><div class="st-lbl">Kurtosis</div><div class="st-val">${d.kurtosis}</div></div>
+  </div>
+  <div class="flex-row mt8">${badge(d.skew_label)}&nbsp;${badge(d.kurt_label)}</div>
+  <div class="card mt12 card-chart"><h3>Histogram — ${d.column}</h3>
+    <img src="data:image/png;base64,${d.chart}"/>
+  </div>${codePanel(d.code)}`;
+}
+
+function renderOutliers(d){
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Q1</div><div class="st-val">${fmt(d.q1)}</div></div>
+    <div class="st"><div class="st-lbl">Q3</div><div class="st-val">${fmt(d.q3)}</div></div>
+    <div class="st"><div class="st-lbl">IQR</div><div class="st-val v-accent">${fmt(d.iqr)}</div></div>
+    <div class="st"><div class="st-lbl">Lower Fence</div><div class="st-val">${fmt(d.lower)}</div></div>
+    <div class="st"><div class="st-lbl">Upper Fence</div><div class="st-val">${fmt(d.upper)}</div></div>
+    <div class="st"><div class="st-lbl">Outliers</div>
+      <div class="st-val ${d.outlier_count>0?'v-pink':'v-green'}">${d.outlier_count} (${d.outlier_pct}%)</div></div>
+  </div>
+  <div class="card mt12 card-chart"><h3>Boxplot — ${d.column}</h3>
+    <img src="data:image/png;base64,${d.chart}"/>
+  </div>${codePanel(d.code)}`;
+}
+
+function renderScatter(d){
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">X Column</div><div class="st-val v-accent">${d.x_col}</div></div>
+    <div class="st"><div class="st-lbl">Y Column</div><div class="st-val v-accent">${d.y_col}</div></div>
+    <div class="st"><div class="st-lbl">Correlation (r)</div>
+      <div class="st-val ${Math.abs(d.correlation)>0.7?'v-green':Math.abs(d.correlation)>0.4?'v-amber':'v-pink'}">${d.correlation}</div></div>
+  </div>
+  <div class="card mt12 card-chart"><h3>Scatter Plot</h3>
+    <img src="data:image/png;base64,${d.chart}"/>
+  </div>${codePanel(d.code)}`;
+}
+
+function renderSort(d){
+  return`<div class="card"><h3>Sorted by ${d.sort_col||""} — showing ${d.showing} of ${fmt(d.total)} rows</h3>
+    ${tbl(d.rows,d.cols)}
+    ${exportBar(d.rows,d.cols,"sorted")}
+  </div>${codePanel(d.code)}`;
+}
+
+function renderSlice(d){
+  const filters=d.filters_applied?.length
+    ?d.filters_applied.map(f=>`<span class="badge b-purple">${f}</span>`).join(" ")
+    :`<span style="color:var(--muted)">No filters applied</span>`;
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Matched Rows</div><div class="st-val v-green">${fmt(d.total_matched)}</div></div>
+    <div class="st"><div class="st-lbl">Showing</div><div class="st-val">${d.showing}</div></div>
+  </div>
+  <div class="flex-row mt8">${filters}</div>
+  <div class="card mt12"><h3>Filtered Result</h3>
+    ${tbl(d.rows,d.cols)}
+    ${exportBar(d.rows,d.cols,"slice")}
+  </div>${codePanel(d.code)}`;
+}
+
+/* ── Boot ──────────────────────────────────────────────── */
+window.addEventListener("DOMContentLoaded",()=>{ init(); });
+</script>
+</body>
+</html>
