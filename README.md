@@ -1,6 +1,6 @@
 ﻿# Panda - No-Code Pandas Workbench
 
-Live project: Add Render live link after deployment
+Live project: https://panda-data-analysis-workbench.onrender.com
 
 Panda is a no-code pandas workbench for exploring CSV and Excel datasets through an interactive browser interface. I built it to make common pandas analysis workflows easier to run, inspect, explain, visualize, and export without manually writing code for every operation.
 
