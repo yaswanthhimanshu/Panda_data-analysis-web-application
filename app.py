@@ -4,7 +4,7 @@ No-code Pandas analysis engine.
 All routes, all analysis operations, upload handling in one file.
 """
 
-import os, io, uuid, base64, warnings, secrets, time
+import os, io, uuid, base64, warnings, secrets, time, csv
 import chardet
 import numpy as np
 import pandas as pd
@@ -92,6 +92,20 @@ def detect_encoding_bytes(raw: bytes) -> str:
     enc = r.get("encoding") or "utf-8"
     return enc if (r.get("confidence") or 0) >= 0.6 else "utf-8"
 
+def detect_csv_delimiter(raw: bytes, encoding: str) -> str:
+    try:
+        sample = raw[:20_000].decode(encoding, errors="replace")
+        return csv.Sniffer().sniff(sample, delimiters=[",", ";", "\t", "|"]).delimiter
+    except Exception:
+        return ","
+
+def read_csv_bytes(raw: bytes, encoding: str):
+    sep = detect_csv_delimiter(raw, encoding)
+    try:
+        return pd.read_csv(io.BytesIO(raw), encoding=encoding, sep=sep)
+    except Exception:
+        return pd.read_csv(io.BytesIO(raw), encoding=encoding, sep=None, engine="python")
+
 def _sid():
     """Get or create a unique private token for this browser session."""
     if "_sid" not in session:
@@ -168,8 +182,10 @@ def upload():
     try:
         if ext == "csv":
             encoding = detect_encoding_bytes(raw)
-            try:    df = pd.read_csv(io.BytesIO(raw), encoding=encoding)
-            except: df = pd.read_csv(io.BytesIO(raw), encoding="latin-1"); encoding = "latin-1"
+            try:
+                df = read_csv_bytes(raw, encoding)
+            except:
+                df = read_csv_bytes(raw, "latin-1"); encoding = "latin-1"
         else:
             df = pd.read_excel(io.BytesIO(raw))
     except Exception as e:
