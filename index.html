@@ -1086,7 +1086,7 @@ async function runOp(op){
       case "outliers":          url="/api/outliers"; body={...sel,column:v("outCol")}; break;
       case "scatter":           url="/api/scatter"; body={...sel,x_col:v("scX"),y_col:v("scY")}; break;
       case "sort":              url="/api/sort"; body={...sel,column:v("sortCol"),ascending:v("sortDir")==="true",n:iv("sortN",100)}; break;
-      case "slice":             url="/api/slice"; body={...sel,filters:getFilters(),n:200}; break;
+      case "slice":             url="/api/slice"; body={...sel,filters:getFilters(),n:200}; window._lastSliceParams={...body}; break;
       default: R.innerHTML=`<div class="err">Unknown operation.</div>`; return;
     }
     const resp = body
@@ -1156,6 +1156,21 @@ async function exportXLSX(){
   dl(await resp.blob(),`${name}.xlsx`);
 }
 function dl(blob,filename){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); }
+
+async function exportFullCSV(){
+  const params=window._lastSliceParams||{};
+  const resp=await fetch("/api/export-filtered",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({...params,format:"csv",filename:"slice_export"})});
+  if(!resp.ok){alert("Export failed.");return;}
+  dl(await resp.blob(),"slice_export.csv");
+}
+async function exportFullXLSX(){
+  const params=window._lastSliceParams||{};
+  const resp=await fetch("/api/export-filtered",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({...params,format:"xlsx",filename:"slice_export"})});
+  if(!resp.ok){alert("Export failed.");return;}
+  dl(await resp.blob(),"slice_export.xlsx");
+}
 
 /* ── Result renderers ────────────────────────────────── */
 function renderResult(op,d,R){
@@ -1446,6 +1461,11 @@ function renderSlice(d){
   const filters=d.filters_applied?.length
     ?d.filters_applied.map(f=>`<span class="badge b-purple">${f}</span>`).join(" ")
     :`<span style="color:var(--muted)">No filters applied</span>`;
+  const fullExportBar=`<div class="export-bar">
+    <span class="export-label">Export all ${fmt(d.total_matched)} matched rows</span>
+    <button class="btn-export" onclick="exportFullCSV()">CSV</button>
+    <button class="btn-export" onclick="exportFullXLSX()">Excel</button>
+  </div>`;
   return`
   <div class="sg">
     <div class="st"><div class="st-lbl">Matched Rows</div><div class="st-val v-green">${fmt(d.total_matched)}</div></div>
@@ -1454,7 +1474,7 @@ function renderSlice(d){
   <div class="flex-row mt8">${filters}</div>
   <div class="card mt12"><h3>Filtered Result</h3>
     ${tbl(d.rows,d.cols)}
-    ${exportBar(d.rows,d.cols,"slice")}
+    ${fullExportBar}
   </div>${codePanel(d.code)}`;
 }
 

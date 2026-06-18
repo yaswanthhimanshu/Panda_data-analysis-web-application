@@ -131,6 +131,36 @@ def load_df():
     _STORE[key]["last_access"] = time.time()
     return _STORE[key]["df"], None
 
+def _eq_mask(s, val, negate=False):
+    """Equality mask: tries numeric comparison for numeric columns, else string."""
+    try:
+        if pd.api.types.is_numeric_dtype(s):
+            num = pd.to_numeric(s, errors="coerce")
+            fv = float(val)
+            mask = num == fv
+            # Also match string form (e.g. user typed "40.0" for float col)
+            mask = mask | (s.astype(str) == str(val))
+            return ~mask if negate else mask
+    except (ValueError, TypeError):
+        pass
+    mask = s.astype(str) == str(val)
+    return ~mask if negate else mask
+
+def _isin_mask(s, vals_list):
+    """isin mask: tries numeric comparison for numeric columns, else string."""
+    str_vals = [v.strip() for v in vals_list]
+    try:
+        if pd.api.types.is_numeric_dtype(s):
+            num_vals = []
+            for v in str_vals:
+                try: num_vals.append(float(v))
+                except (ValueError, TypeError): pass
+            num = pd.to_numeric(s, errors="coerce")
+            return num.isin(num_vals) | s.astype(str).isin(str_vals)
+    except Exception:
+        pass
+    return s.astype(str).isin(str_vals)
+
 def apply_selection(df, params):
     cols = params.get("columns")
     if cols and cols != "all" and isinstance(cols, list):
@@ -140,10 +170,10 @@ def apply_selection(df, params):
     if fcol and fop and fval is not None and fcol in df.columns:
         s = df[fcol]
         try:
-            if fop == "eq":         df = df[s.astype(str) == str(fval)]
-            elif fop == "ne":       df = df[s.astype(str) != str(fval)]
+            if fop == "eq":         df = df[_eq_mask(s, fval)]
+            elif fop == "ne":       df = df[_eq_mask(s, fval, negate=True)]
             elif fop == "contains": df = df[s.astype(str).str.contains(str(fval), case=False, na=False)]
-            elif fop == "isin":     df = df[s.astype(str).isin([v.strip() for v in str(fval).split(",")])]
+            elif fop == "isin":     df = df[_isin_mask(s, [v.strip() for v in str(fval).split(",")])]
             else:
                 n = float(fval); num = pd.to_numeric(s, errors="coerce")
                 if fop == "gt":  df = df[num > n]
@@ -785,12 +815,12 @@ def slice_data():
         if col not in df.columns: continue
         try:
             s = df[col]; ops_map = {"gt": ">", "lt": "<", "gte": ">=", "lte": "<="}
-            if op == "eq":         df = df[s.astype(str) == str(val)]; code_lines.append(f'df[df["{col}"]=="{val}"]')
-            elif op == "ne":       df = df[s.astype(str) != str(val)]; code_lines.append(f'df[df["{col}"]!="{val}"]')
+            if op == "eq":         df = df[_eq_mask(s, val)]; code_lines.append(f'df[df["{col}"]=="{val}"]')
+            elif op == "ne":       df = df[_eq_mask(s, val, negate=True)]; code_lines.append(f'df[df["{col}"]!="{val}"]')
             elif op == "contains": df = df[s.astype(str).str.contains(str(val), case=False, na=False)]; code_lines.append(f'df[df["{col}"].str.contains("{val}")]')
             elif op == "isin":
                 vals = [v.strip() for v in str(val).split(",")]
-                df = df[s.astype(str).isin(vals)]; code_lines.append(f'df[df["{col}"].isin({vals})]')
+                df = df[_isin_mask(s, vals)]; code_lines.append(f'df[df["{col}"].isin({vals})]')
             elif op in ops_map:
                 fv = float(val); num = pd.to_numeric(s, errors="coerce")
                 df = df[eval(f"num{ops_map[op]}fv")]; code_lines.append(f'df[df["{col}"]{ops_map[op]}{val}]')
@@ -851,7 +881,7 @@ def scatter():
     return jsonify({"x_col": xc, "y_col": yc, "correlation": corr, "chart": fig_to_b64(fig),
                     "code": f'df.plot.scatter("{xc}", "{yc}")\ndf[["{xc}","{yc}"]].corr()'})
 
-# ── 22. Export Excel ───────────────────────────────────────────────────────────
+# ── 22. Export Excel (client-side rows — legacy) ──────────────────────────────
 
 @app.route("/api/export-excel", methods=["POST"])
 def export_excel():
@@ -863,6 +893,56 @@ def export_excel():
     buf = io.BytesIO(); result_df.to_excel(buf, index=False, engine="openpyxl"); buf.seek(0)
     return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                      as_attachment=True, download_name=f"{fname}.xlsx")
+
+# ── 23. Export Filtered (server-side — all matched rows) ──────────────────────
+
+@app.route("/api/export-filtered", methods=["POST"])
+def export_filtered():
+    """Re-applies all slice filters server-side and exports ALL matched rows."""
+    df, err = load_df()
+    if err: return jsonify({"error": err}), 400
+    d = request.get_json(silent=True) or {}
+    fmt = d.get("format", "csv")
+    fname = d.get("filename", "panda_export")
+    # Apply column selection + simple filter from selection bar
+    df = apply_selection(df, d)
+    # Apply stacked slice filters
+    filters = d.get("filters", [])
+    for f in filters:
+        col = f.get("col"); op = f.get("op"); val = f.get("val")
+        if col not in df.columns:
+            continue
+        try:
+            s = df[col]
+            if op == "eq":
+                df = df[_eq_mask(s, val)]
+            elif op == "ne":
+                df = df[_eq_mask(s, val, negate=True)]
+            elif op == "contains":
+                df = df[s.astype(str).str.contains(str(val), case=False, na=False)]
+            elif op == "isin":
+                vals = [v.strip() for v in str(val).split(",")]
+                df = df[_isin_mask(s, vals)]
+            elif op in ("gt", "lt", "gte", "lte"):
+                ops_map = {"gt": ">", "lt": "<", "gte": ">=", "lte": "<="}
+                fv = float(val); num = pd.to_numeric(s, errors="coerce")
+                df = df[eval(f"num{ops_map[op]}fv")]
+        except Exception:
+            continue
+    if df.empty:
+        return jsonify({"error": "No rows match the applied filters."}), 400
+    buf = io.BytesIO()
+    if fmt == "xlsx":
+        df.to_excel(buf, index=False, engine="openpyxl")
+        buf.seek(0)
+        return send_file(buf,
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         as_attachment=True, download_name=f"{fname}.xlsx")
+    else:
+        df.to_csv(buf, index=False)
+        buf.seek(0)
+        return send_file(buf, mimetype="text/csv",
+                         as_attachment=True, download_name=f"{fname}.csv")
 
 # ── Run ────────────────────────────────────────────────────────────────────────
 
