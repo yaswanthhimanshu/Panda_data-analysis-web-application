@@ -30,6 +30,7 @@ instance/
 # Local uploads/exports, if created during testing
 uploads/
 exports/
+panda_data/
 *.csv
 *.xlsx
 *.xls

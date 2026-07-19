@@ -1,11 +1,20 @@
 <!DOCTYPE html>
+<!--
+  Panda browser interface.
+
+  System workflow: collect upload, selection, and analysis parameters; call the
+  Flask endpoints in app.py; render returned tables and ECharts recipes; expose
+  CSV/Excel exports. User workflow: upload -> filter/select -> analyze or chart
+  -> inspect the pandas-backed result -> export. Calculations stay in app.py.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Panda — No-Code Pandas Workbench</title>
+<title>Panda — No-Code Data Analysis Workbench</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
 /* ══════════════════════════════════════════════════
    PANDA CSS — Deep-space analytical theme
@@ -15,8 +24,9 @@
   --border:#252535;--border2:#2e2e44;
   --text:#d4d4e8;--muted:#7878a0;--dim:#4a4a6a;
   --accent:#7c6af7;--asoft:rgba(124,106,247,.12);--aglow:rgba(124,106,247,.25);
+
   --pink:#e05c8a;--green:#3ec9a7;--amber:#f5c842;--red:#e05c5c;
-  --r:8px;--rl:14px;
+  --r:7px;--rl:8px;
   --ui:'Syne',sans-serif;--mono:'DM Mono',monospace;--body:'Inter',sans-serif;
   --t:180ms ease;
 }
@@ -27,7 +37,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14
 
 /* ── Header ─────────────────────────────────────── */
 .hdr{position:sticky;top:0;z-index:100;display:flex;align-items:center;
-  justify-content:space-between;padding:0 28px;height:52px;
+  justify-content:space-between;padding:0 24px;height:56px;
   background:rgba(11,11,17,.92);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border)}
 .logo{display:flex;align-items:center;gap:10px;font-family:var(--ui);
@@ -40,7 +50,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14
 .nav-link.danger:hover{color:var(--red)}
 
 /* ── Pages ──────────────────────────────────────── */
-.page{display:none;min-height:calc(100vh - 52px)}
+.page{display:none;min-height:calc(100vh - 56px)}
 .page.active{display:flex}
 
 /* ── Landing ────────────────────────────────────── */
@@ -76,6 +86,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14
 .pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;list-style:none;margin-top:10px}
 .pills li{font-family:var(--mono);font-size:11px;padding:4px 12px;
   border:1px solid var(--border2);border-radius:100px;color:var(--muted)}
+.pills li.new{border-color:var(--aglow);color:var(--accent)}
 
 /* ── Buttons ─────────────────────────────────────── */
 .btn{display:inline-flex;align-items:center;justify-content:center;
@@ -91,20 +102,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14
 .btn-export:hover{color:var(--text);border-color:var(--accent)}
 
 /* ── Workspace ───────────────────────────────────── */
-#workspace{flex-direction:row;height:calc(100vh - 52px);overflow:hidden}
+#workspace{flex-direction:row;height:calc(100vh - 56px);overflow:hidden}
 
 /* Sidebar */
 .sidebar{background:var(--bg2);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;overflow-y:auto;width:220px;flex-shrink:0}
-.sb-file{display:flex;align-items:center;gap:8px;padding:14px 16px;
+  display:flex;flex-direction:column;overflow-y:auto;width:236px;flex-shrink:0}
+.sb-file{display:flex;align-items:center;gap:8px;padding:14px 18px;
   border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;
   color:var(--muted);background:var(--bg3);overflow:hidden}
 .sb-fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.op-nav{padding:8px 0 24px}
+.op-nav{padding:10px 0 28px}
 .op-section{font-family:var(--mono);font-size:9px;text-transform:uppercase;
-  letter-spacing:2px;color:var(--dim);padding:14px 16px 4px}
-.op-btn{display:flex;align-items:center;justify-content:space-between;
-  width:100%;padding:7px 16px;background:none;border:none;
+  letter-spacing:2px;color:var(--dim);padding:18px 18px 6px}
+.op-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  width:100%;min-height:36px;padding:9px 18px;background:none;border:none;
   text-align:left;font-family:var(--body);font-size:13px;color:var(--muted);
   cursor:pointer;transition:background var(--t),color var(--t);
   border-left:2px solid transparent}
@@ -116,30 +127,45 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14
 
 /* Main panel */
 .main-panel{display:flex;flex-direction:column;flex:1;overflow:hidden;background:var(--bg)}
+.workbench-grid{display:grid;
+  grid-template-columns:280px minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr) auto;
+  grid-template-areas:"params result" "params context";
+  gap:0;min-height:0;flex:1;overflow:hidden}
+.zone-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:1.5px;color:var(--dim);margin-bottom:12px}
+@media (min-width:1680px){
+  .workbench-grid{
+    grid-template-columns:320px minmax(0,1fr) 320px;
+    grid-template-rows:minmax(0,1fr);
+    grid-template-areas:"params result context"}
+  .context-panel{display:block;overflow-y:auto;border-top:0;border-left:1px solid var(--border)}
+  .context-panel>.zone-title{margin-bottom:12px}
+  .context-panel>.card,.context-panel>.code-panel{margin-bottom:14px}
+}
 
 /* Selection bar */
-.sel-bar{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;
-  padding:10px 20px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.sel-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;
+  padding:12px 24px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
 .sel-group{display:flex;flex-direction:column;gap:4px}
 .sel-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;
   letter-spacing:1.5px;color:var(--dim)}
 .sel-input{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);
-  color:var(--text);font-family:var(--body);font-size:12px;padding:5px 10px;
+  color:var(--text);font-family:var(--body);font-size:12px;padding:8px 11px;min-height:36px;
   outline:none;transition:border-color var(--t)}
 .sel-input:focus{border-color:var(--accent)}
 .sel-input[multiple]{min-width:180px;padding:4px 6px}
 .sel-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 
 /* Params */
-.params{padding:12px 20px 0;flex-shrink:0;background:var(--bg);
-  border-bottom:1px solid var(--border)}
-.params-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;padding-bottom:12px}
-.p-group{display:flex;flex-direction:column;gap:4px}
+.params{grid-area:params;padding:24px;overflow-y:auto;background:var(--bg2);border-right:1px solid var(--border)}
+.params-form{display:flex;flex-direction:column;align-items:stretch;gap:16px;padding-bottom:20px}
+.p-group{display:flex;flex-direction:column;gap:7px}
 .p-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;
   letter-spacing:1.5px;color:var(--dim)}
 .p-input{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);
-  color:var(--text);font-family:var(--body);font-size:13px;padding:7px 10px;
-  outline:none;min-width:140px;transition:border-color var(--t)}
+  color:var(--text);font-family:var(--body);font-size:13px;padding:10px 12px;
+  outline:none;min-width:140px;min-height:40px;transition:border-color var(--t)}
 .p-input:focus{border-color:var(--accent)}
 
 /* Group level builder */
@@ -169,22 +195,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14
   background:var(--asoft);color:var(--accent)}
 
 /* Result */
-.result{flex:1;overflow-y:auto;padding:20px}
+.result{grid-area:result;overflow-y:auto;padding:28px;min-width:0}
+.context-panel{grid-area:context;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:start;gap:12px;max-height:198px;overflow-y:auto;padding:14px 24px;
+  background:var(--bg2);border-top:1px solid var(--border)}
+.context-panel>.zone-title{grid-column:1/-1;margin:0}
+.context-panel>.card{margin:0;min-width:0;padding:16px}
+.context-panel>.code-panel{grid-column:1/-1;margin:0}
+.context-actions{display:flex;flex-direction:column;gap:8px}
 .placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;
   height:100%;color:var(--dim);gap:12px;text-align:center;line-height:1.8}
 .ph-icon{font-size:36px;opacity:.4}
 
 /* Cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
-  padding:20px;margin-bottom:14px}
+  padding:22px;margin-bottom:18px}
 .card h3{font-family:var(--ui);font-size:11px;font-weight:700;text-transform:uppercase;
   letter-spacing:1px;color:var(--muted);margin-bottom:14px}
 .card-chart img{width:100%;border-radius:var(--r);border:1px solid var(--border);
   max-height:320px;object-fit:contain}
+/* ECharts containers — full width, responsive height (no more 320px-cramped PNGs) */
+.chart-container{width:100%;height:420px;min-height:280px}
+.chart-container.chart-tall{height:520px}
+.chart-container.chart-short{height:300px}
+@media (max-width:700px){
+  .chart-container{height:320px;min-height:240px}
+  .chart-container.chart-tall{height:380px}
+}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:800px){.chart-row{grid-template-columns:1fr}}
 
 /* Stats grid */
-.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:14px}
-.st{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:11px 14px}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:18px}
+.st{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;min-height:82px}
 .st-lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;
   letter-spacing:1.5px;color:var(--dim);margin-bottom:4px}
 .st-val{font-family:var(--mono);font-size:17px;font-weight:500;color:var(--text)}
@@ -200,12 +243,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14
 .b-red{background:rgba(224,92,92,.15);color:var(--red)}
 
 /* Tables */
-.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)}
+.tbl-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-bottom:12px;flex-wrap:wrap}
+.tbl-search{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);
+  color:var(--text);font-family:var(--body);font-size:12px;padding:6px 9px;min-width:190px}
+.tbl-pager{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.tbl-wrap{overflow:auto;border-radius:var(--r);border:1px solid var(--border);max-height:58vh}
 table.panda-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
-table.panda-table th{background:var(--bg3);color:var(--muted);padding:8px 12px;
-  text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-weight:500}
+table.panda-table th{position:sticky;top:0;z-index:2;background:var(--bg3);color:var(--muted);
+  padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);
+  white-space:nowrap;font-weight:500;resize:horizontal;overflow:auto;cursor:pointer}
 table.panda-table td{padding:7px 12px;border-bottom:1px solid var(--border);
   color:var(--text);white-space:nowrap}
+table.panda-table.compact td{padding:4px 9px}
+table.panda-table.compact th{padding:5px 9px}
 table.panda-table tr:last-child td{border-bottom:none}
 table.panda-table tr:hover td{background:var(--bg3)}
 .raw-tbl{overflow-x:auto}
@@ -218,7 +269,7 @@ table.panda-table tr:hover td{background:var(--bg3)}
 .raw-tbl tr:hover td{background:var(--bg3)}
 
 /* Export bar */
-.export-bar{display:flex;align-items:center;gap:8px;margin-top:10px}
+.export-bar{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .export-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;
   letter-spacing:1.5px;color:var(--dim)}
 
@@ -259,6 +310,16 @@ table.panda-table tr:hover td{background:var(--bg3)}
   border-radius:var(--r);padding:14px 18px;color:var(--red);
   font-family:var(--mono);font-size:13px}
 
+/* Toast */
+#toastHost{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--bg4);border:1px solid var(--border2);border-radius:var(--r);
+  padding:10px 18px;font-family:var(--mono);font-size:12.5px;color:var(--text);
+  box-shadow:0 8px 24px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);
+  transition:opacity .2s ease,transform .2s ease}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.hide{opacity:0;transform:translateY(-4px)}
+
 /* Optgroup */
 select optgroup{color:var(--dim);font-style:normal;font-size:10px}
 select option{color:var(--text);background:var(--bg3)}
@@ -278,13 +339,13 @@ select option{color:var(--text);background:var(--bg3)}
 /* ── Guide Panel ─────────────────────────────────────────────────── */
 .guide-panel{background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
 .guide-toggle{display:flex;align-items:center;gap:10px;width:100%;
-  padding:9px 20px;background:none;border:none;color:var(--muted);
+  padding:11px 24px;background:none;border:none;color:var(--muted);
   cursor:pointer;font-family:var(--mono);font-size:11px;text-align:left;
   transition:color var(--t);letter-spacing:.5px}
 .guide-toggle:hover{color:var(--accent)}
 .guide-toggle-icon{font-size:13px;transition:transform var(--t)}
 .guide-toggle.open .guide-toggle-icon{transform:rotate(90deg)}
-.guide-body{display:none;padding:0 20px 16px;animation:fadeIn .15s ease}
+.guide-body{display:none;padding:2px 24px 20px;animation:fadeIn .15s ease}
 .guide-body.visible{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .guide-section{display:flex;flex-direction:column;gap:6px}
@@ -302,9 +363,60 @@ select option{color:var(--text);background:var(--bg3)}
 .guide-code{font-family:var(--mono);font-size:11px;color:var(--green);
   background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
   padding:8px 12px;line-height:1.7;white-space:pre-wrap}
+
+/* ── Saved Datasets modal ───────────────────────────── */
+.modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(6,6,10,.68);
+  display:flex;align-items:center;justify-content:center;padding:24px}
+.modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);
+  max-width:720px;width:100%;max-height:80vh;overflow-y:auto;padding:22px}
+.modal-close{float:right;cursor:pointer;color:var(--muted);font-family:var(--ui);
+  font-size:13px;font-weight:600}
+.modal-close:hover{color:var(--text)}
+
+@media (max-width:1100px){
+  .sidebar{width:210px}
+  .workbench-grid{grid-template-columns:260px minmax(0,1fr)}
+  .params{padding:20px}
+  .result{padding:22px}
+  .context-panel{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media (max-width:820px){
+  #workspace{height:auto;min-height:calc(100vh - 56px);overflow:visible;flex-direction:column}
+  .sidebar{width:100%;max-height:none;overflow:hidden;border-right:0;border-bottom:1px solid var(--border)}
+  .sb-file{padding:9px 16px}
+  .op-nav{display:flex;gap:4px;overflow-x:auto;padding:8px 12px;scrollbar-width:none}
+  .op-nav::-webkit-scrollbar{display:none}
+  .op-section{display:none}
+  .op-btn{width:auto;min-width:max-content;min-height:34px;padding:8px 12px;
+    border-left:0;border-bottom:2px solid transparent;border-radius:var(--r)}
+  .op-btn.active{border-left-color:transparent;border-bottom-color:var(--accent)}
+  .main-panel{overflow:visible;min-height:0}
+  .workbench-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;
+    grid-template-areas:"params" "result" "context";overflow:visible}
+  .params,.result,.context-panel{overflow:visible}
+  .params{border-right:0;border-bottom:1px solid var(--border)}
+  .context-panel{grid-template-columns:minmax(0,1fr);max-height:none}
+}
+
+@media (max-width:600px){
+  .hdr{height:52px;padding:0 16px}
+  .page{min-height:calc(100vh - 52px)}
+  #workspace{min-height:calc(100vh - 52px)}
+  .hdr-nav{gap:12px}
+  .nav-link{font-size:11px}
+  .sel-bar{padding:12px 16px;gap:12px}
+  .sel-group,.sel-input{width:100%}
+  .params,.result,.context-panel{padding:18px 16px}
+  .card{padding:18px}
+  .sg{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tbl-pager{width:100%;justify-content:space-between}
+}
+
 </style>
 </head>
 <body>
+<div id="toastHost"></div>
 
 <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
 <header class="hdr">
@@ -314,20 +426,26 @@ select option{color:var(--text);background:var(--bg3)}
   <nav class="hdr-nav" id="hdrNav"></nav>
 </header>
 
+<!-- ══ SAVED DATASETS MODAL (header-level, not an analysis op) ══════ -->
+<div class="modal-overlay" id="datasetModalOverlay" style="display:none" onclick="if(event.target===this)closeDatasetModal()">
+  <div class="modal-box" id="datasetModalBox"></div>
+</div>
+
 <!-- ══ LANDING ═════════════════════════════════════════════════════ -->
 <div class="page active" id="landing">
   <div class="hero-bg"></div>
   <div class="hero">
-    <p class="eyebrow">No-Code Pandas Workbench</p>
+    <p class="eyebrow">No-Code Data Analysis Workbench</p>
     <h1 class="hero-title">Upload.<br/>Select.<br/>Analyze.</h1>
-    <p class="hero-sub">Group Analysis, Pivot Tables, Correlations, Distributions,<br/>
-      Profiling, Quantiles and more — without writing code.</p>
+    <p class="hero-sub">See what's actually driving your numbers — which segment, what changed<br/>
+      since last period, and how each group contributes. Every result comes with<br/>
+      the exact pandas code behind it, so nothing is a black box.</p>
 
     <div class="upload-zone" id="uploadZone">
       <div class="upload-icon">⬆</div>
-      <p class="upload-label">Drop your CSV or Excel file here</p>
-      <p class="upload-sub">or click to browse &nbsp;·&nbsp; max 50 MB</p>
-      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden/>
+      <p class="upload-label">Drop a structured data file here</p>
+      <p class="upload-sub">CSV, TSV, JSON, Excel, Parquet, compressed files, or ZIP</p>
+      <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.json,.jsonl,.ndjson,.xlsx,.xls,.parquet,.feather,.arrow,.orc,.gz,.bz2,.zip" hidden/>
     </div>
 
     <div class="upload-status" id="uploadStatus" style="display:none">
@@ -341,10 +459,11 @@ select option{color:var(--text);background:var(--bg3)}
     </div>
 
     <ul class="pills">
-      <li>Column Profiler</li><li>Group Analysis Studio</li><li>Pivot Tables</li>
-      <li>Correlation Heatmap</li><li>Distribution Analysis</li><li>Quantile Analysis</li>
-      <li>Outlier Detection</li><li>Frequency Analysis</li><li>Skewness &amp; Kurtosis</li>
-      <li>Export CSV / Excel</li><li>Pandas Code Preview</li>
+      <li class="new">Contribution Analysis</li><li class="new">Variance Analysis</li>
+      <li>Group Analysis</li><li>Group Comparison</li><li>Time Series</li>
+      <li>Correlation</li><li>Missing Values</li><li>Data Quality</li>
+      <li>Value Counts</li><li>Outliers</li><li>Column Profiler</li>
+      <li>Chart Builder</li><li>CSV and Excel Export</li>
     </ul>
   </div>
 </div>
@@ -354,43 +473,9 @@ select option{color:var(--text);background:var(--bg3)}
 
   <!-- Sidebar -->
   <aside class="sidebar">
+    <nav class="op-nav" id="opNav"></nav>
     <div class="sb-file"><span>📄</span><span class="sb-fname" id="sbFilename">—</span></div>
-    <nav class="op-nav" id="opNav">
-
-      <p class="op-section">Inspection</p>
-      <button class="op-btn active" data-op="overview">Dataset Overview</button>
-      <button class="op-btn" data-op="column-profiler">Column Profiler <span class="op-badge">⭐</span></button>
-      <button class="op-btn" data-op="preview">Head / Tail / Sample</button>
-      <button class="op-btn" data-op="summary">Statistical Summary</button>
-
-      <p class="op-section">Statistics</p>
-      <button class="op-btn" data-op="central-tendency">Mean / Median / Mode</button>
-      <button class="op-btn" data-op="std-variance">Std Dev &amp; Variance</button>
-      <button class="op-btn" data-op="skewness-kurtosis">Skewness &amp; Kurtosis</button>
-      <button class="op-btn" data-op="quantile">Quantile Analysis</button>
-      <button class="op-btn" data-op="covariance">Covariance</button>
-
-      <p class="op-section">Categorical</p>
-      <button class="op-btn" data-op="value-counts">Value Counts</button>
-      <button class="op-btn" data-op="frequency">Frequency Analysis</button>
-
-      <p class="op-section">Analysis</p>
-      <button class="op-btn" data-op="group-analysis">Group Analysis <span class="op-badge">⭐</span></button>
-      <button class="op-btn" data-op="pivot">Pivot Table</button>
-      <button class="op-btn" data-op="crosstab">Crosstab</button>
-      <button class="op-btn" data-op="correlation">Correlation Studio</button>
-      <button class="op-btn" data-op="ranking">Ranking Analysis</button>
-
-      <p class="op-section">Distribution</p>
-      <button class="op-btn" data-op="distribution">Distribution Analysis</button>
-      <button class="op-btn" data-op="outliers">Outlier Detection</button>
-      <button class="op-btn" data-op="scatter">Scatter Plot</button>
-
-      <p class="op-section">Filter &amp; Sort</p>
-      <button class="op-btn" data-op="slice">Data Slicer</button>
-      <button class="op-btn" data-op="sort">Sort Studio</button>
-
-    </nav>
+    
   </aside>
 
   <!-- Main panel -->
@@ -435,6 +520,7 @@ select option{color:var(--text);background:var(--bg3)}
     <!-- Guide panel -->
     <div class="guide-panel" id="guidePanel" style="display:none"></div>
 
+    <div class="workbench-grid">
     <!-- Params panel -->
     <div class="params" id="paramsPanel"></div>
 
@@ -444,6 +530,11 @@ select option{color:var(--text);background:var(--bg3)}
         <span class="ph-icon">⚡</span>
         <p>Select an operation from the sidebar<br/>and configure parameters to run it.</p>
       </div>
+    </div>
+      <aside class="context-panel" id="contextPanel">
+        <div class="zone-title">Insights & Actions</div>
+        <p style="color:var(--muted);font-size:13px">Run an operation to see result context, Pandas code, and export controls.</p>
+      </aside>
     </div>
 
   </div>
@@ -457,13 +548,40 @@ let S = {
   allCols:[], numCols:[], catCols:[],
   recCols:[], otherCols:[],
   currentOp:"overview",
+  localStorage:false,
+  tableState:{},
 };
+
+const MODULE_NAV = [
+  ["Dataset", [["overview","Overview"],["data-quality-studio","Data Quality"],["column-dictionary","Column Dictionary"],["preview","Preview Table"]]],
+  ["Analyze", [["group-analysis","Group Analysis","Core"],["contribution-analysis","Contribution Analysis"],["variance-analysis","Variance Analysis"],["group-comparison","Group Comparison"],["time-series-studio","Time Series"],["segment-studio","Segment Comparison"],["pivot","Pivot Table"],["crosstab","Crosstab"],["ranking","Ranking / Top Bottom"]]],
+  ["Explore", [["column-profiler","Column Profiler"],["missing-analysis","Missing Values"],["distribution","Distribution"],["outliers","Outliers"],["correlation","Correlation"],["value-counts","Value Counts"]]],
+  ["Visualize", [["visual-studio","Chart Builder"],["scatter","Recommended Visuals"]]],
+];
+
+function renderModuleNav(){
+  const nav=document.getElementById("opNav");
+  nav.innerHTML=MODULE_NAV.map(([section,items])=>`
+    <p class="op-section">${section}</p>
+    ${items.map(([op,label,badge])=>`<button class="op-btn ${op===S.currentOp?'active':''}" data-op="${op}">
+      <span>${label}</span>${badge?`<span class="op-badge">${badge}</span>`:""}
+    </button>`).join("")}
+  `).join("");
+}
 
 /* ── Init ──────────────────────────────────────────── */
 async function init(){
+  document.title="Panda - Data Analysis Platform";
+  document.querySelector(".upload-sub").textContent="CSV, TSV, JSON, Excel, Parquet, compressed files, or ZIP";
+  renderModuleNav();
   try{
     const r=await fetch("/api/columns");
     if(r.ok){ const d=await r.json(); if(d.all?.length){ loadCols(d); S.hasFile=true; showResume(); updateNav(); } }
+  }catch(e){}
+  try{
+    const lr=await fetch("/api/local-datasets"); const ld=await lr.json();
+    S.localStorage=!!ld.local_storage;
+    updateNav();   // surfaces the "Saved Datasets" header link when available
   }catch(e){}
 }
 function loadCols(d){
@@ -472,11 +590,19 @@ function loadCols(d){
   S.recGroupCols=d.recommended_group||d.recommended_gb||[];
   S.recMetricCols=d.recommended_metric||d.numeric||[];
   S.otherCols=d.other_cols||[];
+  S.dateCols=d.datetime||[];
+  S.boolCols=d.boolean||[];
+  S.candidateKeys=d.candidate_keys||[];
+  S.qualityScore=d.quality_score;
 }
 function updateNav(){
-  document.getElementById("hdrNav").innerHTML = S.hasFile
-    ? `<span class="nav-link" onclick="showWorkspace()">Workspace</span>
-       <a class="nav-link danger" href="/clear">Clear Dataset</a>`:"";
+  const links=[];
+  if(S.localStorage) links.push(`<span class="nav-link" onclick="openDatasetModal()">Saved Datasets</span>`);
+  if(S.hasFile){
+    links.push(`<span class="nav-link" onclick="showWorkspace()">Workspace</span>`);
+    links.push(`<a class="nav-link danger" href="/clear">Clear Dataset</a>`);
+  }
+  document.getElementById("hdrNav").innerHTML = links.join("");
 }
 function showResume(){ document.getElementById("resumeBar").style.display="flex"; }
 function goLanding(){
@@ -487,9 +613,34 @@ async function showWorkspace(){
   if(!S.hasFile)return;
   document.getElementById("landing").classList.remove("active");
   document.getElementById("workspace").classList.add("active");
-  document.getElementById("sbFilename").textContent=S.filename||"dataset";
+  document.getElementById("sbFilename").textContent=S.filename||"No dataset loaded";
+  document.querySelectorAll(".op-btn").forEach(b=>b.classList.toggle("active",b.dataset.op===S.currentOp));
   populateSelBar();
   renderParams(S.currentOp);
+  if(S.currentOp==="overview" && !window._lastResult) runCurrent();
+}
+
+/* ── Saved Datasets modal (header-level — not an analysis op) ──────── */
+async function openDatasetModal(){
+  const box=document.getElementById("datasetModalBox");
+  box.innerHTML=`<span class="modal-close" onclick="closeDatasetModal()">✕ Close</span>
+    <div style="clear:both"></div><div class="loading"><div class="spinner"></div>Loading saved datasets…</div>`;
+  document.getElementById("datasetModalOverlay").style.display="flex";
+  await refreshDatasetModal();
+}
+function closeDatasetModal(){
+  document.getElementById("datasetModalOverlay").style.display="none";
+}
+async function refreshDatasetModal(){
+  const box=document.getElementById("datasetModalBox");
+  try{
+    const r=await fetch("/api/local-datasets"); const d=await r.json();
+    box.innerHTML=`<span class="modal-close" onclick="closeDatasetModal()">✕ Close</span>
+      <div style="clear:both"></div>${renderDatasetManager(d)}`;
+  }catch(e){
+    box.innerHTML=`<span class="modal-close" onclick="closeDatasetModal()">✕ Close</span>
+      <div style="clear:both"></div><div class="err">⚠ Could not load saved datasets.</div>`;
+  }
 }
 
 /* ── Upload ────────────────────────────────────────── */
@@ -506,6 +657,8 @@ zone.addEventListener("drop",e=>{e.preventDefault();zone.classList.remove("drag"
 fileIn.addEventListener("change",()=>{if(fileIn.files[0])doUpload(fileIn.files[0]);});
 
 async function doUpload(file){
+  // Upload is the only point where raw user file bytes enter the system. The
+  // backend normalizes and persists them; the UI retains metadata and an ID.
   zone.style.display="none"; status.style.display="flex";
   upText.textContent=`Detecting encoding & loading "${file.name}"…`;
   const fd=new FormData(); fd.append("file",file);
@@ -513,10 +666,14 @@ async function doUpload(file){
     const r=await fetch("/upload",{method:"POST",body:fd}); const d=await r.json();
     if(d.error){uploadErr(d.error);return;}
     S.filename=d.filename;
+    S.localStorage=!!d.local_storage;
     const cr=await fetch("/api/columns"); const cd=await cr.json();
     loadCols(cd); S.hasFile=true;
     upSpinner.style.display="none";
+    const loadedRows=d.rows&&d.rows.toLocaleString?d.rows.toLocaleString():d.rows;
+    const loadedCols=d.columns&&d.columns.toLocaleString?d.columns.toLocaleString():d.columns;
     upText.textContent=`✓ "${d.filename}" · encoding: ${d.encoding}`;
+    upText.textContent=`Loaded "${d.filename}" (${loadedRows} rows, ${loadedCols} columns, ${d.source_format||"data"})`;
     upText.style.color="var(--green)";
     updateNav(); showResume();
     setTimeout(showWorkspace,900);
@@ -543,6 +700,8 @@ function onColModeChange(){
     document.getElementById("selCols").value==="select"?"":"none";
 }
 function getSel(){
+  // Build the shared selection payload included with every analysis request.
+  // app.py applies these fields once, in columns -> filter -> range order.
   const rm=document.getElementById("selRows").value;
   const cm=document.getElementById("selCols").value; const p={};
   if(rm==="filter"){ p.filter_col=v("selFCol"); p.filter_op=v("selFOp"); p.filter_val=v("selFVal"); }
@@ -557,10 +716,20 @@ function buildSelect(id,cols,label){
   return `<div class="p-group"><span class="p-label">${label}</span>
     <select class="p-input" id="${id}">${cols.map(c=>`<option>${c}</option>`).join("")}</select></div>`;
 }
-function buildAggSelect(id,label){
-  const AGGS=["mean","sum","count","min","max","median","mode","std","variance"];
+function buildOptionalSelect(id,cols,label,emptyLabel="Auto"){
   return `<div class="p-group"><span class="p-label">${label}</span>
-    <select class="p-input" id="${id}">${AGGS.map(a=>`<option value="${a}">${a}</option>`).join("")}</select></div>`;
+    <select class="p-input" id="${id}"><option value="">${emptyLabel}</option>${cols.map(c=>`<option>${c}</option>`).join("")}</select></div>`;
+}
+function buildMultiSelect(id,cols,label){
+  return `<div class="p-group"><span class="p-label">${label}</span>
+    <select class="p-input" id="${id}" multiple size="5" style="min-width:190px">${cols.map(c=>`<option>${c}</option>`).join("")}</select></div>`;
+}
+function buildAggSelect(id,label,includeNone=false){
+  const AGGS=["mean","sum","count","min","max","median","mode","std","variance"];
+  const opts=(includeNone?["none",...AGGS]:AGGS)
+    .map(a=>`<option value="${a}">${a==="none"?"none (raw data)":a}</option>`).join("");
+  return `<div class="p-group"><span class="p-label">${label}</span>
+    <select class="p-input" id="${id}">${opts}</select></div>`;
 }
 function runBtn(label="Run"){
   return `<div class="p-group" style="align-self:flex-end">
@@ -600,6 +769,229 @@ function getGroupCols(){
 function getCheckedCalcs(){
   return Array.from(document.querySelectorAll("#gaCalcs input:checked")).map(i=>i.value);
 }
+function onGaCalcsChange(e){
+  const box=document.getElementById("gaCalcs");
+  if(!box)return;
+  const none=box.querySelector('input[value="none"]');
+  const others=Array.from(box.querySelectorAll('input:not([value="none"])'));
+  if(e.target===none){
+    others.forEach(o=>{ o.disabled=none.checked; if(none.checked) o.checked=false; });
+  }else if(e.target.checked && none?.checked){
+    none.checked=false; others.forEach(o=>o.disabled=false);
+  }
+}
+
+/* ── Visualization Studio: show only inputs relevant to the chart type ── */
+function updateVizFields(){
+  const chartType=document.getElementById("vizType")?.value;
+  if(!chartType)return;
+  document.querySelectorAll(".viz-field").forEach(el=>{
+    const types=(el.dataset.chartTypes||"").split(",");
+    el.style.display=types.includes(chartType)?"flex":"none";
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   POWER BI–STYLE CHART ENGINE (Apache ECharts)
+   Every analysis endpoint returns a small JSON "recipe" (type, xAxis,
+   yAxis, series, markLines…) instead of a rendered image. This single
+   renderer turns that recipe into an interactive, animated, themeable
+   chart — tooltips, clickable legends, zoom, and auto-resize included.
+   ══════════════════════════════════════════════════════════════════ */
+const POWER_BI_COLORS = [
+    '#7c6af7', '#e05c8a', '#3ec9a7', '#f5c842',
+    '#a78bfa', '#34d399', '#f87171', '#fbbf24',
+    '#60a5fa', '#f472b6', '#c084fc', '#facc15'
+];
+const _pandaCharts = {};   // containerId -> echarts instance, so we can dispose cleanly
+
+function renderECharts(containerId, config){
+  // Translate a backend-generated chart recipe into ECharts options. This
+  // function renders values but never performs analytical aggregation.
+  const dom=document.getElementById(containerId);
+  if(!dom||!config)return null;
+
+  let chart=_pandaCharts[containerId] || echarts.getInstanceByDom(dom);
+  if(chart){ chart.dispose(); delete _pandaCharts[containerId]; }
+  chart=echarts.init(dom, "dark", {renderer:"canvas"});
+  _pandaCharts[containerId]=chart;
+
+  const isHeat=config.type==="heatmap";
+  const isScatter=config.type==="scatter";
+  const isBox=config.type==="boxplot";
+  const isPie=config.type==="pie";
+  const isTreemap=config.type==="treemap";
+  const horizontal=!!config.horizontal;
+
+  const series=(config.series||[]).map((s,i)=>{
+    const base={
+      name: s.name||"Series",
+      type: s.type || (config.type==="histogram" ? "bar" : config.type),
+      data: s.data||[],
+      color: s.color || POWER_BI_COLORS[i%POWER_BI_COLORS.length],
+      animationDuration: 700,
+      animationEasing: "cubicOut",
+    };
+    if(s.stack) base.stack=s.stack;
+    if(s.areaStyle) base.areaStyle=s.areaStyle;
+    if(s.radius) base.radius=s.radius;
+    if(base.type==="bar"){
+      base.barWidth = (config.series.length>1) ? "60%" : "70%";
+      base.barGap="30%";
+      base.emphasis={focus:"series", itemStyle:{shadowBlur:12, shadowColor:"rgba(0,0,0,.45)"}};
+    }
+    if(base.type==="scatter"){ base.symbolSize = s.name==="Outliers"?9:10; }
+    if(base.type==="line"){ base.smooth=true; base.showSymbol=false; base.lineStyle={width:2}; }
+    if(base.type==="pie"){
+      base.radius = s.radius || (config.donut ? ["45%","70%"] : "68%");
+      base.center = ["50%","55%"];
+      base.label={color:"#d4d4e8", formatter:"{b}: {d}%"};
+      base.emphasis={itemStyle:{shadowBlur:14, shadowColor:"rgba(0,0,0,.45)"}};
+    }
+    if(base.type==="treemap"){
+      base.roam=false;
+      base.label={show:true, color:"#ffffff", fontSize:11};
+      base.upperLabel={show:true, color:"#d4d4e8"};
+      base.itemStyle={borderColor:"#101018", borderWidth:2};
+    }
+    if(base.type==="heatmap"){ base.label={show:true, color:"#0e0e14", fontSize:10, fontWeight:600}; }
+    return base;
+  });
+
+  const option={
+    backgroundColor: "transparent",
+    title:{
+      text: config.title||"",
+      textStyle:{color:"#d4d4e8", fontSize:13, fontWeight:600, fontFamily:"Inter, sans-serif"},
+      left:"center", top:0,
+    },
+    tooltip:{
+      trigger: (isScatter||isPie||isTreemap)?"item":"axis",
+      backgroundColor:"rgba(11,11,17,.92)", borderColor:"#2e2e3e", borderWidth:1,
+      textStyle:{color:"#d4d4e8", fontSize:12},
+      formatter: isHeat ? undefined : function(params){
+        if(!Array.isArray(params)) params=[params];
+        if(isScatter && params[0].seriesName!=="Trend"){
+          const p=params[0];
+          return `<strong>${p.seriesName}</strong><br/>${config.xAxis?.name||"x"}: ${p.value[0]}<br/>${config.yAxis?.name||"y"}: ${p.value[1]}`;
+        }
+        if(isBox){
+          const p=params[0];
+          if(p.data && p.data.length>=5){
+            return `<strong>${p.axisValueLabel||p.name}</strong><br/>Max: ${p.data[5]??p.data[4]}<br/>Q3: ${p.data[3]}<br/>Median: ${p.data[2]}<br/>Q1: ${p.data[1]}<br/>Min: ${p.data[0]}`;
+          }
+          return `${p.seriesName}: ${p.value}`;
+        }
+        let html=`<strong>${params[0].axisValueLabel??params[0].axisValue??""}</strong><br/>`;
+        params.forEach(p=>{ html += `${p.marker} ${p.seriesName}: <strong>${fmtNum(p.value)}</strong><br/>`; });
+        return html;
+      },
+    },
+    legend: series.length>1 ? {
+      data: series.map(s=>s.name), textStyle:{color:"#8888a8", fontSize:11},
+      bottom:0, itemWidth:12, itemHeight:12, type:"scroll",
+    } : {show:false},
+    grid:{ left:"3%", right:"4%", bottom: series.length>1?"14%":"10%", top: config.title?"16%":"8%", containLabel:true },
+    animationDuration:700, animationEasing:"cubicOut",
+  };
+
+  if(isPie || isTreemap){
+    option.series=series;
+    option.legend={
+      type:"scroll", orient:"vertical", right:0, top:36, bottom:8,
+      textStyle:{color:"#8888a8", fontSize:11}, itemWidth:12, itemHeight:12,
+    };
+    chart.setOption(option, true);
+    requestAnimationFrame(()=>chart.resize());
+    return chart;
+  }
+
+  const catAxis={
+    type:"category",
+    data: config.xAxis?.data||[],
+    name: horizontal ? "" : (config.xAxis?.name||""),
+    nameTextStyle:{color:"#8888a8"},
+    axisLabel:{color:"#8888a8", rotate: config.xAxis?.rotate||0, fontSize:10},
+    axisLine:{lineStyle:{color:"#2e2e3e"}},
+    axisTick:{show:false},
+    splitLine:{show:false},
+  };
+  const valAxis={
+    type:"value",
+    name: horizontal ? (config.yAxis?.name||"") : (config.yAxis?.name||""),
+    nameTextStyle:{color:"#8888a8"},
+    axisLabel:{color:"#8888a8", fontSize:10},
+    axisLine:{lineStyle:{color:"#2e2e3e"}},
+    splitLine:{lineStyle:{color:"#2e2e3e", type:"dashed", opacity:.35}},
+  };
+
+  if(isScatter){
+    option.xAxis={...valAxis, name:config.xAxis?.name||"", scale:true};
+    option.yAxis={...valAxis, name:config.yAxis?.name||"", scale:true};
+  } else if(isHeat){
+    option.xAxis={type:"category", data:config.xAxis?.data||[], axisLabel:{color:"#8888a8", rotate:35, fontSize:10}, splitArea:{show:true}, axisLine:{lineStyle:{color:"#2e2e3e"}}};
+    option.yAxis={type:"category", data:config.yAxis?.data||[], axisLabel:{color:"#8888a8", fontSize:10}, splitArea:{show:true}, axisLine:{lineStyle:{color:"#2e2e3e"}}};
+    const vm=config.visualMap||{};
+    option.visualMap={
+      min: vm.min??0, max: vm.max??1, calculable:true, orient:"horizontal",
+      left:"center", bottom:"0%", textStyle:{color:"#8888a8"},
+      inRange:{ color: vm.diverging ? ["#e05c8a","#16161f","#3ec9a7"] : ["#16161f","#7c6af7"] },
+    };
+    option.grid.bottom="18%";
+  } else if(horizontal){
+    option.xAxis=valAxis; option.yAxis=catAxis;
+  } else {
+    option.xAxis=catAxis; option.yAxis=valAxis;
+  }
+
+  // Reference lines (mean / median / mode) for histograms & distributions
+  if(config.markLines && config.markLines.length && series[0]){
+    series[0].markLine={
+      symbol:"none",
+      label:{color:"#d4d4e8", fontSize:10, formatter:"{b}"},
+      lineStyle:{type:"dashed", width:1.5},
+      data: config.markLines.map(m=>({
+        name:m.name, xAxis: horizontal?undefined:m.xAxis, yAxis: horizontal?m.xAxis:undefined,
+        lineStyle:{color:m.color}, label:{color:m.color},
+      })),
+    };
+  }
+
+  // Data Zoom for long category axes — Power BI-style slider
+  const catLen = (config.xAxis?.data||config.yAxis?.data||[]).length;
+  if(catLen>15 && !isHeat){
+    option.dataZoom=[{
+      type: horizontal?"slider":"slider",
+      orient: horizontal?"vertical":"horizontal",
+      [horizontal?"yAxisIndex":"xAxisIndex"]:0,
+      start:0, end: Math.min(100, Math.round(1500/catLen)),
+      [horizontal?"width":"height"]:16,
+      borderColor:"#2e2e3e", fillerColor:"rgba(124,106,247,.2)",
+      handleStyle:{color:"#7c6af7"}, textStyle:{color:"#8888a8", fontSize:9},
+    }];
+    option.grid[horizontal?"right":"bottom"] = horizontal ? "8%" : "18%";
+  }
+
+  option.series=series;
+  chart.setOption(option);
+  chart.resize();
+  return chart;
+}
+function fmtNum(v){
+  if(Array.isArray(v)) return v.map(fmtNum).join(", ");
+  if(typeof v==="number") return Number.isInteger(v)?v.toLocaleString():v.toLocaleString(undefined,{maximumFractionDigits:2});
+  return v;
+}
+// Single resize listener drives every live chart instance
+window.addEventListener("resize", ()=>{
+  Object.values(_pandaCharts).forEach(c=>{ try{ c.resize(); }catch(e){} });
+});
+function mountChart(containerId, config, opts){
+  // Runs after the DOM node exists (renderResult sets innerHTML synchronously,
+  // so a microtask is enough — no arbitrary setTimeout needed).
+  requestAnimationFrame(()=>renderECharts(containerId, config));
+}
+
 
 
 /* ══════════════════════════════════════════════════════════════════
@@ -613,6 +1005,22 @@ const GUIDES = {
     inputs: [],
     output: "Row/column count, dtype per column, missing value counts, memory footprint.",
     pandas: "df.shape\ndf.info()\ndf.isnull().sum()"
+  },
+
+  "data-quality-studio": {
+    def: "A trust audit for the dataset: missingness, duplicates, ID-like fields, cardinality, mixed types, date-like text, and negative numeric values.",
+    purpose: "Real analysis starts by checking whether the data can be trusted before interpreting metrics.",
+    inputs: [],
+    output: "Column-level quality table, issue count, duplicate count, quality score, and prioritized warnings.",
+    pandas: "df.isna().sum()\ndf.duplicated().sum()\ndf.nunique()"
+  },
+
+  "column-dictionary": {
+    def: "A field-by-field dictionary of the loaded dataset with dtype, uniqueness, and missingness.",
+    purpose: "Use this to understand what every column contains before choosing analysis fields.",
+    inputs: [],
+    output: "One row per column with data type, unique value count, missing value count, and missing percentage.",
+    pandas: "pd.DataFrame({'dtype': df.dtypes, 'unique': df.nunique(), 'missing': df.isna().sum()})"
   },
 
   "column-profiler": {
@@ -636,88 +1044,84 @@ const GUIDES = {
     pandas: "df.head(10)\ndf.tail(10)\ndf.sample(10)"
   },
 
-  "summary": {
-    def: "Standard descriptive statistics for all numeric columns at once.",
-    purpose: "Quick range check across the dataset. Spot columns with unexpected min/max or scale issues.",
-    inputs: [],
-    output: "Count, mean, std, min, 25%, 50%, 75%, max per numeric column.",
-    pandas: "df.describe()"
-  },
-
-  "central-tendency": {
-    def: "The three classical 'center' statistics for every numeric column.",
-    purpose: "Compare mean vs median to detect skew. Mode shows the most common value.",
-    inputs: [],
-    output: "Mean, median, and mode for each numeric column.",
-    pandas: "df.mean(numeric_only=True)\ndf.median(numeric_only=True)\ndf.mode(numeric_only=True)"
-  },
-
-  "std-variance": {
-    def: "Measures how spread out values are around the mean.",
-    purpose: "High std = high variability. Coefficient of Variation (CV%) lets you compare spread across columns with different scales.",
-    inputs: [],
-    output: "Std deviation, variance, CV% and a spread rating (Low / Medium / High) per column.",
-    pandas: "df.std(numeric_only=True)\ndf.var(numeric_only=True)"
-  },
-
-  "skewness-kurtosis": {
-    def: "Skewness measures asymmetry of the distribution. Kurtosis measures tail heaviness.",
-    purpose: "Diagnose non-normality before running statistical tests. Many models assume normality.",
-    inputs: [],
-    output: "Skewness (+ = right tail, − = left tail) and kurtosis (+ = heavy tails) per numeric column.",
-    pandas: "df.skew(numeric_only=True)\ndf.kurtosis(numeric_only=True)"
-  },
-
-  "quantile": {
-    def: "Breaks the value range into percentile buckets (P1, P5, P10, P25, P50, P75, P90, P95, P99).",
-    purpose: "Understand value distribution without assuming normality. Essential for detecting extremes and setting thresholds.",
-    inputs: [
-      {label:"Column", type:"num", note:"Must be numeric"}
-    ],
-    output: "Percentile table + bar chart. Q1, median, Q3, and IQR highlighted.",
-    pandas: "df['col'].quantile([.01,.05,.25,.5,.75,.95,.99])"
-  },
-
-  "covariance": {
-    def: "Measures how two numeric variables change together (raw, unstandardized).",
-    purpose: "Precursor to correlation. Positive = both go up together; negative = one rises as the other falls. Scale-sensitive.",
-    inputs: [],
-    output: "Full covariance matrix + ranked pair list.",
-    pandas: "df.cov()"
-  },
-
   "value-counts": {
     def: "Frequency table showing how often each unique value appears in a column.",
     purpose: "Essential for categorical columns. Reveals dominant categories, rare values, and potential data quality issues.",
     inputs: [
       {label:"Column", type:"cat", note:"Best for categorical / low-cardinality columns"},
-      {label:"Top N", type:"any", note:"Limit to top N values (default 20)"}
     ],
     output: "Count and % per value + bar chart.",
     pandas: "df['col'].value_counts()\ndf['col'].value_counts(normalize=True)"
   },
 
-  "frequency": {
-    def: "Like value counts but adds cumulative percentage — a Pareto-style view.",
-    purpose: "See which categories account for 80% of observations (Pareto principle). Great for prioritization.",
-    inputs: [
-      {label:"Column", type:"cat", note:"Best for categorical columns"},
-      {label:"Top N", type:"any", note:"Number of top values"}
-    ],
-    output: "Count, %, and cumulative % per value + dual chart.",
-    pandas: "df['col'].value_counts()\ndf['col'].value_counts(normalize=True).cumsum()"
-  },
-
   "group-analysis": {
     def: "Aggregates a numeric metric across one or more categorical group columns.",
-    purpose: "The core of segmentation analysis. Compare performance, averages, or counts across departments, regions, cohorts, products, etc.",
+    purpose: "Use this to compare performance across categories. For example: Average Salary by Department AND Region, or which region contributes most of total Revenue.",
     inputs: [
       {label:"Metric", type:"num", note:"The numeric column to aggregate (salary, revenue, tenure, score…)"},
       {label:"Group By", type:"cat", note:"One or more categorical columns to segment by (department, region, gender…)"},
-      {label:"Calculation", type:"any", note:"mean · sum · count · min · max · median · std · variance · mode"}
+      {label:"Calculation", type:"any", note:"mean · sum · count · min · max · median · std · variance · mode · share of total % · contribution % · diff from overall average · rank"}
     ],
     output: "One row per group combination with the chosen aggregations. Bar chart for 1 group, heatmap for 2 groups.",
-    pandas: "df.groupby('Department')['Salary'].mean()\ndf.groupby(['Region','Gender'])['Revenue'].agg(['mean','sum','count'])"
+    pandas: "df.groupby('Department')['Salary'].mean()\ng=df.groupby('Region')['Revenue'].sum(); g/g.sum()*100"
+  },
+
+  "contribution-analysis": {
+    def: "Pareto-style contribution table — ranks groups by their share of a metric's grand total and adds a running cumulative %.",
+    purpose: "Answer \"what's actually driving revenue/profit/cost?\" No regression, no AI — just which categories explain the total, and how many of them it takes to explain most of it.",
+    inputs: [
+      {label:"Group", type:"cat", note:"Products, regions, customers — whatever you want to rank"},
+      {label:"Metric", type:"num", note:"The metric to sum and rank by (revenue, profit, cost…)"}
+    ],
+    output: "Ranked table: total, record count, contribution %, cumulative %, and direction (flags negative contributors). Pareto chart with a cumulative line.",
+    pandas: "g=df.groupby('Product')['Revenue'].sum().sort_values(ascending=False)\n(g/g.sum()*100).cumsum()"
+  },
+
+  "variance-analysis": {
+    def: "Compares a metric between two time periods (current vs. previous) and, optionally, breaks the change down by group.",
+    purpose: "Answer \"what changed since last period, and which segments caused it?\" — the classic variance/bridge analysis.",
+    inputs: [
+      {label:"Date Column", type:"any", note:"Date or date-like text column"},
+      {label:"Metric", type:"num", note:"Numeric metric to compare period over period"},
+      {label:"Frequency", type:"any", note:"Day · Week · Month · Quarter · Year — the period size to compare"},
+      {label:"Group", type:"opt", note:"Optional — breaks the change down by category, ranked by contribution to the net change"}
+    ],
+    output: "Current vs. previous value, absolute change, % change, and (with a group) a ranked table of who drove the increase/decrease.",
+    pandas: "p=df.groupby(pd.Grouper(key='date',freq='M'))['sales'].sum()\nchange=p.iloc[-1]-p.iloc[-2]; pct=change/p.iloc[-2]*100"
+  },
+
+  "group-comparison": {
+    def: "Compares groups against the overall benchmark and calculates difference, lift %, share %, and contribution.",
+    purpose: "Moves beyond aggregation into interpretation: who is above/below average, by how much, and how much they contribute.",
+    inputs: [
+      {label:"Group", type:"cat", note:"Segment or category to compare"},
+      {label:"Metric", type:"num", note:"Numeric value being compared"}
+    ],
+    output: "Ranked group table with value, overall benchmark, difference, lift %, share %, and chart.",
+    pandas: "g=df.groupby('Region')['Sales'].mean()\n(g-g.mean())/g.mean()*100"
+  },
+
+  "time-series-studio": {
+    def: "Aggregates a metric over a detected date column and adds moving average plus period-over-period change.",
+    purpose: "Answer what changed over time, whether a metric is growing or shrinking, and which periods stand out.",
+    inputs: [
+      {label:"Date Column", type:"any", note:"Date or date-like text column"},
+      {label:"Metric", type:"opt", note:"Numeric metric; leave blank for record count"}
+    ],
+    output: "Period table, moving average, period change %, trend chart, and best/worst periods.",
+    pandas: "df.groupby(pd.Grouper(key='date', freq='M'))['sales'].sum()"
+  },
+
+  "segment-studio": {
+    def: "Creates segments from a single column and profiles each segment's characteristics.",
+    purpose: "Use this to understand how your data is distributed across a single variable. For example: group Age into ranges and see the average Salary within each age group. Leave the Metric blank to see only segment sizes.",
+    inputs: [
+      {label:"Segment Column", type:"any", note:"The single column to split into segments"},
+      {label:"Segment Type", type:"any", note:"Existing categories · numeric ranges (equal-width) · quantile groups (equal-size)"},
+      {label:"Optional: Profile Metric", type:"opt", note:"Numeric column to profile within each segment — leave blank for segment size only"}
+    ],
+    output: "One row per segment: row count, share %, missing %, and (if a metric is chosen) its mean/median/min/max.",
+    pandas: "df.groupby('AgeGroup').size()\ndf.groupby('AgeGroup')['Salary'].agg(['mean','median','min','max'])"
   },
 
   "pivot": {
@@ -756,14 +1160,13 @@ const GUIDES = {
   },
 
   "ranking": {
-    def: "Returns the top-N largest and smallest rows by a numeric column.",
+    def: "Returns all rows sorted largest-to-smallest and smallest-to-largest by a numeric column.",
     purpose: "Quickly surface the best and worst performers — top customers by revenue, bottom products by rating, etc.",
     inputs: [
-      {label:"Column", type:"num", note:"Numeric column to rank by"},
-      {label:"N", type:"any", note:"Number of top/bottom rows to show"}
+      {label:"Column", type:"num", note:"Numeric column to rank by"}
     ],
-    output: "Two tables: top-N largest and top-N smallest rows.",
-    pandas: "df.nlargest(10, 'Salary')\ndf.nsmallest(10, 'Salary')"
+    output: "Two full sorted tables: largest-to-smallest and smallest-to-largest.",
+    pandas: "df.sort_values('Salary', ascending=False)\ndf.sort_values('Salary', ascending=True)"
   },
 
   "distribution": {
@@ -776,14 +1179,26 @@ const GUIDES = {
     pandas: "df['col'].hist(bins=30)\ndf['col'].skew()\ndf['col'].kurtosis()"
   },
 
-  "outliers": {
-    def: "Detects values that fall beyond 1.5× the IQR below Q1 or above Q3 (the standard boxplot rule).",
-    purpose: "Identify data entry errors, extreme observations, or genuinely anomalous records before modeling.",
+  "missing-analysis": {
+    def: "Profiles missing data by column, optionally by group, and compares target metric behavior when values are missing.",
+    purpose: "Find whether missing values are random noise or meaningful patterns that could bias analysis.",
     inputs: [
-      {label:"Column", type:"num", note:"Must be numeric"}
+      {label:"Group Lens", type:"opt", note:"Optional segment to compare missingness across"},
+      {label:"Target Metric", type:"opt", note:"Optional metric to compare missing vs complete rows"}
     ],
-    output: "Outlier count, percentage, fence values (Q1−1.5·IQR, Q3+1.5·IQR), and boxplot.",
-    pandas: "Q1,Q3=df['col'].quantile([.25,.75])\nIQR=Q3-Q1\ndf[(df['col']<Q1-1.5*IQR)|(df['col']>Q3+1.5*IQR)]"
+    output: "Missingness table, missingness chart, and pattern insights.",
+    pandas: "df.isna().sum()\ndf.groupby('segment')['col'].apply(lambda s: s.isna().mean())"
+  },
+
+  "outliers": {
+    def: "Detects outliers with IQR, Z-score, modified Z/MAD, or percentile cutoffs and measures metric impact.",
+    purpose: "Understand whether extreme values are changing averages and inspect the actual outlier rows.",
+    inputs: [
+      {label:"Column", type:"num", note:"Numeric column to audit"},
+      {label:"Method", type:"any", note:"IQR, Z-score, MAD, or percentile"}
+    ],
+    output: "Thresholds, outlier count, percent, mean with/without outliers, boxplot, and outlier rows.",
+    pandas: "z=(s-s.mean())/s.std()\ns[(z.abs()>3)]"
   },
 
   "scatter": {
@@ -797,6 +1212,17 @@ const GUIDES = {
     pandas: "df.plot.scatter('col_x', 'col_y')\ndf[['col_x','col_y']].corr()"
   },
 
+  "visual-studio": {
+    def: "A flexible chart builder that adapts to the selected chart type.",
+    purpose: "Choose a chart type below. The required inputs will appear automatically. Use Scatter for correlation, Histogram for shape, or Bar for group comparisons.",
+    inputs: [
+      {label:"Chart", type:"any", note:"Smart Auto infers a chart from X/Y, or pick a specific chart type"},
+      {label:"X / Category, Y / Metric, Aggregation, Bins", type:"any", note:"Only the fields relevant to the chosen chart type are shown"}
+    ],
+    output: "A single chart matching the selected type, plus the equivalent pandas snippet.",
+    pandas: "df['col'].hist(bins=30)\ndf.groupby('x')['y'].mean()\ndf.plot.scatter('x','y')"
+  },
+
   "slice": {
     def: "Applies one or more row-level filters to narrow the dataset for analysis.",
     purpose: "Subset analysis — e.g. only look at churned customers, or orders above $1000, or a specific region.",
@@ -808,7 +1234,7 @@ const GUIDES = {
   },
 
   "sort": {
-    def: "Orders rows by a column, ascending or descending, and shows the top N results.",
+    def: "Orders rows by a column, ascending or descending.",
     purpose: "Quick ranking view without aggregation. See raw records ordered by any field.",
     inputs: [
       {label:"Column", type:"any", note:"Any column"},
@@ -819,6 +1245,34 @@ const GUIDES = {
     pandas: "df.sort_values('Salary', ascending=False).head(100)"
   }
 };
+
+const CHART_GUIDE = [
+  ["Histogram", "Distribution analysis", "One numeric column", "Shows shape, spread, skew, gaps, and unusual ranges."],
+  ["Value Counts Bar", "Category frequency", "One categorical column", "Ranks categories by count so dominant and rare values are obvious."],
+  ["Grouped Metric Bar", "Compare groups", "Category + numeric metric", "Best for comparing aggregated values across a manageable set of groups."],
+  ["Horizontal Bar", "Rank long category labels", "Category + numeric metric", "Keeps labels readable when categories have long names or many levels."],
+  ["Stacked Bar", "Composition by segment", "Category + numeric metric + legend category", "Shows both totals and how each subgroup contributes to each category."],
+  ["Line", "Trend over ordered values or time", "Date/ordered category + numeric metric", "Reveals direction, seasonality, spikes, and dips across an ordered axis."],
+  ["Area", "Magnitude over time", "Date/ordered category + numeric metric", "Like a line chart, but emphasizes accumulated volume and scale."],
+  ["Combo Bar + Line", "Compare level and trend together", "Category/date + numeric metric", "Uses bars for exact period values and a line to make the trend easier to see."],
+  ["Pie", "Part-to-whole snapshot", "Low-cardinality category + positive metric", "Useful only when there are few slices and the goal is share of total."],
+  ["Donut", "Part-to-whole chart", "Low-cardinality category + positive metric", "A cleaner pie variant when you need a compact share-of-total visual."],
+  ["Treemap", "Part-to-whole with many categories", "Category + positive metric", "Uses area to compare many category contributions without a very long bar chart."],
+  ["Boxplot", "Compare distributions by segment", "Category + numeric metric", "Shows median, quartiles, spread, and outliers for each group."],
+  ["Scatter + Trend", "Relationship analysis", "Two numeric columns", "Shows correlation, clusters, outliers, and whether a linear trend exists."],
+  ["Correlation Heatmap", "Numeric relationship scan", "Two or more numeric columns", "Quickly finds strong positive/negative relationships across many metrics."],
+];
+
+function renderChartGuideDetails(){
+  return `<div class="guide-section" style="grid-column:1/-1">
+    <div class="guide-section-title">Chart Selection Guide</div>
+    <div class="tbl-wrap"><table class="panda-table" style="font-size:11px">
+      <thead><tr><th>Chart</th><th>Use For</th><th>Values Needed</th><th>Why</th></tr></thead>
+      <tbody>${CHART_GUIDE.map(([chart,useFor,values,why])=>`
+        <tr><td>${chart}</td><td>${useFor}</td><td>${values}</td><td>${why}</td></tr>`).join("")}</tbody>
+    </table></div>
+  </div>`;
+}
 
 /* tag colours: num=purple  cat=green  any=muted  opt=amber */
 function renderGuide(op){
@@ -876,6 +1330,7 @@ function renderGuide(op){
         <div class="guide-section-title">Pandas Equivalent</div>
         <div class="guide-code">${g.pandas}</div>
       </div>
+      ${op==="visual-studio"?renderChartGuideDetails():""}
     </div>`;
 }
 
@@ -894,12 +1349,20 @@ function renderParams(op){
   const nc=NC(); const ac=AC();
   renderGuide(op);  // always show guide for current operation
 
-  const CALC_LIST=["count","sum","mean","median","mode","min","max","std","variance"];
+  const CALC_LIST=["count","sum","mean","median","mode","min","max","std","variance","share_pct","contribution_pct","diff_from_avg","rank"];
+  const CALC_LABELS={
+    none:"none (raw data)", share_pct:"share of total %", contribution_pct:"contribution %",
+    diff_from_avg:"diff from overall avg", rank:"rank",
+  };
   const DEFAULT_CHECKED=["count","mean","min","max"];
 
   switch(op){
     case "overview":
       P.innerHTML=`<div class="params-form">${runBtn("Load Overview")}</div>`; runCurrent(); break;
+    case "data-quality-studio":
+      P.innerHTML=`<div class="params-form">${runBtn("Audit Quality")}</div>`; runCurrent(); break;
+    case "column-dictionary":
+      P.innerHTML=`<div class="params-form">${runBtn("Load Dictionary")}</div>`; runCurrent(); break;
     case "column-profiler":
       P.innerHTML=`<div class="params-form">
         ${buildSelect("cpCol",ac,"Column")}
@@ -912,31 +1375,10 @@ function renderParams(op){
           </select></div>
         ${inp("pvN","Rows","10","number")}
         ${runBtn("Preview")}</div>`; break;
-    case "summary":
-      P.innerHTML=`<div class="params-form">${runBtn("Run Summary")}</div>`; runCurrent(); break;
-    case "central-tendency":
-      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
-    case "std-variance":
-      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
-    case "skewness-kurtosis":
-      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
-    case "quantile":
-      P.innerHTML=`<div class="params-form">
-        ${buildSelect("qtCol",nc,"Column")}
-        ${runBtn("Analyze")}</div>`; break;
-    case "covariance":
-      P.innerHTML=`<div class="params-form">${runBtn("Calculate")}</div>`; runCurrent(); break;
     case "value-counts":
       P.innerHTML=`<div class="params-form">
         ${buildSelect("vcCol",ac,"Column")}
-        ${inp("vcN","Top N","20","number")}
         ${runBtn("Run")}</div>`; break;
-    case "frequency":
-      P.innerHTML=`<div class="params-form">
-        ${buildSelect("freqCol",ac,"Column")}
-        ${inp("freqN","Top N","20","number")}
-        ${runBtn("Analyze")}</div>`; break;
-
     // ── Group Analysis Studio ──────────────────────────────────────────────
     case "group-analysis":
       P.innerHTML=`<div class="params-form" style="align-items:flex-start">
@@ -948,80 +1390,133 @@ function renderParams(op){
         </div>
         <div class="p-group">
           <span class="p-label">Calculations</span>
-          <div class="calc-checks" id="gaCalcs">
-            ${CALC_LIST.map(a=>`<label><input type="checkbox" value="${a}"${DEFAULT_CHECKED.includes(a)?' checked':''}/><span>${a}</span></label>`).join("")}
+          <div class="calc-checks" id="gaCalcs" onchange="onGaCalcsChange(event)">
+            ${CALC_LIST.map(a=>`<label><input type="checkbox" value="${a}"${DEFAULT_CHECKED.includes(a)?' checked':''}/><span>${CALC_LABELS[a]||a}</span></label>`).join("")}
           </div>
+          <div style="margin-top:4px;font-size:11px;color:var(--dim);line-height:1.4">Share of total %, contribution %, diff from average, and rank are computed against the grand total across all groups — handy for "who's driving this metric?" questions.</div>
         </div>
         ${runBtn("Run Analysis")}
       </div>`;
       glCount=0; addGroupLevel(); break;
-    // ────────────────────────────────────────────────────────────────────────
-
+    case "segment-studio":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("segCol",ac,"Segment Column")}
+        <div class="p-group"><span class="p-label">Segment Type</span>
+          <select class="p-input" id="segMode">
+            <option value="category">Existing categories</option>
+            <option value="range">Numeric ranges</option>
+            <option value="quantile">Quantile groups</option>
+          </select></div>
+        ${inp("segBins","Bins / Groups","5","number")}
+        <div class="p-group">
+          <span class="p-label">Optional: Profile Metric</span>
+          <select class="p-input" id="segMetric">
+            <option value="">— none —</option>
+            ${nc.map(c=>`<option>${c}</option>`).join("")}
+          </select>
+          <span style="font-size:11px;color:var(--muted)">(Leave blank to see only segment size and missing %)</span>
+        </div>
+        ${runBtn("Compare Segments")}
+      </div>`; break;
+    case "group-comparison":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("gcGroup",S.recGroupCols?.length?S.recGroupCols:ac,"Group")}
+        ${buildSelect("gcMetric",S.recMetricCols?.length?S.recMetricCols:nc,"Metric")}
+        ${buildAggSelect("gcAgg","Aggregation",true)}
+        ${runBtn("Compare Groups")}</div>`; break;
+    case "contribution-analysis":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("caGroup",S.recGroupCols?.length?S.recGroupCols:ac,"Group")}
+        ${buildSelect("caMetric",S.recMetricCols?.length?S.recMetricCols:nc,"Metric")}
+        ${runBtn("Rank Contributors")}</div>`; break;
+    case "variance-analysis":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("vaDate",S.dateCols?.length?S.dateCols:ac,"Date Column")}
+        ${buildSelect("vaMetric",S.recMetricCols?.length?S.recMetricCols:nc,"Metric")}
+        <div class="p-group"><span class="p-label">Grain</span>
+          <select class="p-input" id="vaFreq"><option value="D">Daily</option><option value="W">Weekly</option><option value="M" selected>Monthly</option><option value="Q">Quarterly</option><option value="Y">Yearly</option></select></div>
+        <div class="p-group"><span class="p-label">Aggregation</span>
+          <select class="p-input" id="vaAgg"><option value="sum" selected>sum</option><option value="mean">mean</option><option value="count">count</option></select></div>
+        ${buildOptionalSelect("vaGroup",S.recGroupCols?.length?S.recGroupCols:ac,"Break Down By","Overall total only")}
+        ${runBtn("Compare Periods")}</div>`; break;
+    case "time-series-studio":
+      P.innerHTML=`<div class="params-form">
+        ${buildSelect("tsDate",S.dateCols?.length?S.dateCols:ac,"Date Column")}
+        ${buildOptionalSelect("tsMetric",nc,"Metric","Record count")}
+        ${buildOptionalSelect("tsCat",S.recGroupCols?.length?S.recGroupCols:ac,"Driver Segment","None")}
+        <div class="p-group"><span class="p-label">Grain</span>
+          <select class="p-input" id="tsFreq"><option value="D">Daily</option><option value="W">Weekly</option><option value="M" selected>Monthly</option><option value="Q">Quarterly</option><option value="Y">Yearly</option></select></div>
+        <div class="p-group"><span class="p-label">Aggregation</span>
+          <select class="p-input" id="tsAgg"><option value="sum">sum</option><option value="mean">mean</option><option value="count">count</option><option value="none">none (raw data)</option></select></div>
+        ${runBtn("Analyze Time")}</div>`; break;
     case "pivot":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("pvIdx",ac,"Index (Rows)")}
+        ${buildSelect("pvIdx",ac,"Rows")}
         ${buildSelect("pvCols",ac,"Columns")}
         ${buildSelect("pvVals",nc,"Values")}
         ${buildAggSelect("pvAgg","Aggregation")}
         ${runBtn("Build Pivot")}</div>`; break;
     case "crosstab":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("ctRow",ac,"Row Column")}
-        ${buildSelect("ctCol",ac,"Column")}
-        <div class="p-group"><span class="p-label">Normalize</span>
-          <select class="p-input" id="ctNorm"><option value="false">No</option><option value="true">Yes (%)</option></select>
-        </div>
-        ${runBtn("Run Crosstab")}</div>`; break;
+        ${buildSelect("ctRow",ac,"Rows")}
+        ${buildSelect("ctCol",ac,"Columns")}
+        <div class="p-group"><span class="p-label">Values</span>
+          <select class="p-input" id="ctNorm"><option value="false">Counts</option><option value="true">Percent of total</option></select></div>
+        ${runBtn("Build Crosstab")}</div>`; break;
     case "correlation":
       P.innerHTML=`<div class="params-form">
         <div class="p-group"><span class="p-label">Method</span>
-          <select class="p-input" id="corrM">
-            <option value="pearson">Pearson</option>
-            <option value="spearman">Spearman</option>
-            <option value="kendall">Kendall</option>
-          </select></div>
-        ${runBtn("Run Correlation")}</div>`; break;
+          <select class="p-input" id="corrM"><option value="pearson">Pearson</option><option value="spearman">Spearman</option><option value="kendall">Kendall</option></select></div>
+        ${buildOptionalSelect("corrTarget",nc,"Focus Column","All numeric columns")}
+        <div class="p-group"><span class="p-label">ID-like Columns</span>
+          <select class="p-input" id="corrIgnoreIds"><option value="true">Exclude</option><option value="false">Include</option></select></div>
+        ${runBtn("Calculate Correlation")}</div>`; break;
     case "ranking":
-      P.innerHTML=`<div class="params-form">
-        ${buildSelect("rkCol",nc,"Column")}
-        ${inp("rkN","Top N","10","number")}
-        ${runBtn("Run Ranking")}</div>`; break;
+      P.innerHTML=`<div class="params-form">${buildSelect("rkCol",nc,"Rank By")}${runBtn("Rank Rows")}</div>`; break;
     case "distribution":
-      P.innerHTML=`<div class="params-form">
-        ${buildSelect("distCol",nc,"Column")}
-        ${runBtn("Analyze")}</div>`; break;
+      P.innerHTML=`<div class="params-form">${buildSelect("distCol",nc,"Column")}${runBtn("Show Distribution")}</div>`; break;
     case "outliers":
       P.innerHTML=`<div class="params-form">
         ${buildSelect("outCol",nc,"Column")}
-        ${runBtn("Detect Outliers")}</div>`; break;
+        <div class="p-group"><span class="p-label">Method</span>
+          <select class="p-input" id="outMethod"><option value="iqr">IQR</option><option value="zscore">Z-score</option><option value="mad">MAD</option><option value="percentile">Percentile</option></select></div>
+        ${runBtn("Find Outliers")}</div>`; break;
+    case "missing-analysis":
+      P.innerHTML=`<div class="params-form">
+        ${buildOptionalSelect("missGroup",ac,"Group Lens","No grouping")}
+        ${buildOptionalSelect("missTarget",nc,"Target Metric","No target")}
+        ${runBtn("Analyze Missing Values")}</div>`; break;
     case "scatter":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("scX",nc,"X Column")}
-        ${buildSelect("scY",nc,"Y Column")}
-        ${runBtn("Plot")}</div>`; break;
-    case "sort":
+        ${buildSelect("scX",nc,"X Column")}${buildSelect("scY",nc,"Y Column")}
+        ${runBtn("Build Scatter Plot")}</div>`; break;
+    case "visual-studio":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("sortCol",ac,"Column")}
-        <div class="p-group"><span class="p-label">Direction</span>
-          <select class="p-input" id="sortDir">
-            <option value="true">Ascending ↑</option>
-            <option value="false">Descending ↓</option>
+        <div class="p-group"><span class="p-label">Chart Type</span>
+          <select class="p-input" id="vizType" onchange="updateVizFields()">
+            <option value="auto">Recommended</option><option value="histogram">Histogram</option>
+            <option value="topn">Value Counts Bar</option><option value="bar">Grouped Metric Bar</option>
+            <option value="horizontal-bar">Horizontal Bar</option><option value="stacked-bar">Stacked Bar</option>
+            <option value="line">Line</option><option value="area">Area</option><option value="combo">Combo Bar + Line</option>
+            <option value="pie">Pie</option><option value="donut">Donut</option><option value="treemap">Treemap</option>
+            <option value="box">Boxplot by Segment</option><option value="scatter">Scatter + Trend</option>
+            <option value="heatmap">Correlation Heatmap</option>
           </select></div>
-        ${inp("sortN","Show rows","100","number")}
-        ${runBtn("Sort")}</div>`; break;
-    case "slice":
-      P.innerHTML=`<div style="padding-bottom:10px">
-        <div id="filterRows"></div>
-        <div style="display:flex;gap:8px;margin-top:6px">
-          <button class="add-filter-btn" onclick="addFilter()">+ Add Filter</button>
-          <button class="btn btn-run" style="width:auto;padding:6px 20px" onclick="runCurrent()">Apply Filters</button>
-        </div></div>`;
-      addFilter(); break;
+        <div class="p-group viz-field" data-chart-types="auto,histogram,topn,bar,horizontal-bar,stacked-bar,line,area,combo,pie,donut,treemap,box,scatter">
+          <span class="p-label">X / Category</span><select class="p-input" id="vizX">${ac.map(c=>`<option>${c}</option>`).join("")}</select></div>
+        <div class="p-group viz-field" data-chart-types="auto,bar,horizontal-bar,stacked-bar,line,area,combo,pie,donut,treemap,box,scatter">
+          <span class="p-label">Y / Metric</span><select class="p-input" id="vizY">${nc.map(c=>`<option>${c}</option>`).join("")}</select></div>
+        <div class="p-group viz-field" data-chart-types="stacked-bar">
+          <span class="p-label">Series / Legend</span><select class="p-input" id="vizSeries">${ac.map(c=>`<option>${c}</option>`).join("")}</select></div>
+        <div class="p-group viz-field" data-chart-types="auto,bar,horizontal-bar,stacked-bar,line,area,combo,pie,donut,treemap">
+          <span class="p-label">Aggregation</span><select class="p-input" id="vizAgg">${["mean","sum","count","min","max","median","mode","std","variance"].map(a=>`<option value="${a}">${a}</option>`).join("")}</select></div>
+        <div class="p-group viz-field" data-chart-types="auto,histogram"><span class="p-label">Bins</span><input class="p-input" id="vizBins" type="number" placeholder="30"/></div>
+        ${runBtn("Build Visual")}</div>`;
+      updateVizFields(); break;
     default: P.innerHTML=""; break;
   }
 }
 
-/* ── Sidebar nav ────────────────────────────────────── */
 document.getElementById("opNav").addEventListener("click",e=>{
   const btn=e.target.closest(".op-btn"); if(!btn)return;
   document.querySelectorAll(".op-btn").forEach(b=>b.classList.remove("active"));
@@ -1030,69 +1525,44 @@ document.getElementById("opNav").addEventListener("click",e=>{
   renderParams(S.currentOp);
 });
 
-/* ── Slice filter builder ───────────────────────────── */
-let fc=0;
-function addFilter(){
-  fc++;
-  const id=`fr${fc}`;
-  const cols=S.allCols.map(c=>`<option>${c}</option>`).join("");
-  const row=document.createElement("div"); row.className="filter-row"; row.id=id;
-  row.innerHTML=`
-    <select id="${id}col">${cols}</select>
-    <select id="${id}op">
-      <option value="eq">= equals</option><option value="ne">≠ not equals</option>
-      <option value="gt">&gt; greater</option><option value="lt">&lt; less</option>
-      <option value="gte">≥ ≥</option><option value="lte">≤ ≤</option>
-      <option value="contains">contains</option><option value="isin">is in (a,b,c)</option>
-    </select>
-    <input id="${id}val" placeholder="value" style="min-width:100px"/>
-    <button class="rm-btn" onclick="this.closest('.filter-row').remove()">✕</button>`;
-  document.getElementById("filterRows").appendChild(row);
-}
-function getFilters(){
-  return Array.from(document.querySelectorAll("#filterRows .filter-row"))
-    .map(r=>({col:ge(r.id+"col")?.value, op:ge(r.id+"op")?.value, val:ge(r.id+"val")?.value}))
-    .filter(f=>f.col&&f.val);
-}
-
-/* ── Run operations ─────────────────────────────────── */
 function runCurrent(){ runOp(S.currentOp); }
 
 async function runOp(op){
+  // Central operation dispatcher: map the active form to one API request, then
+  // pass the response to the matching renderer and context panel.
   const sel=getSel();
   const R=document.getElementById("resultPanel");
-  R.innerHTML=`<div class="loading"><div class="spinner"></div>Running ${op}…</div>`;
-
+  R.innerHTML=`<div class="loading"><div class="spinner"></div>Running ${op}...</div>`;
   try{
     let url,body;
     switch(op){
       case "overview":          url="/api/overview"; body=null; break;
+      case "data-quality-studio": url="/api/data-quality-studio"; body=sel; break;
+      case "column-dictionary": url="/api/column-dictionary"; body=null; break;
       case "column-profiler":   url="/api/column-profiler"; body={...sel,column:v("cpCol")}; break;
       case "preview":           url="/api/preview"; body={...sel,mode:v("pvMode")||"head",n:iv("pvN",10)}; break;
-      case "summary":           url="/api/summary"; body=sel; break;
-      case "central-tendency":  url="/api/central-tendency"; body=sel; break;
-      case "std-variance":      url="/api/std-variance"; body=sel; break;
-      case "skewness-kurtosis": url="/api/skewness-kurtosis"; body=sel; break;
-      case "quantile":          url="/api/quantile"; body={...sel,column:v("qtCol")}; break;
-      case "covariance":        url="/api/covariance"; body=sel; break;
-      case "value-counts":      url="/api/value-counts"; body={...sel,column:v("vcCol"),top_n:iv("vcN",20)}; break;
-      case "frequency":         url="/api/frequency"; body={...sel,column:v("freqCol"),top_n:iv("freqN",20)}; break;
+      case "value-counts":      url="/api/value-counts"; body={...sel,column:v("vcCol")}; break;
       case "group-analysis":    url="/api/group-analysis"; body={...sel,metric_col:v("gaMetric"),group_cols:getGroupCols(),calculations:getCheckedCalcs()}; break;
+      case "segment-studio":    url="/api/segment-studio"; body={...sel,segment_col:v("segCol"),segment_mode:v("segMode")||"category",bins:iv("segBins",5)}; { const sm=v("segMetric"); if(sm) body.metric_col=sm; } break;
+      case "group-comparison":  url="/api/group-comparison"; body={...sel,group_col:v("gcGroup"),metric_col:v("gcMetric"),agg:v("gcAgg")||"mean"}; break;
+      case "contribution-analysis": url="/api/contribution-analysis"; body={...sel,group_col:v("caGroup"),metric_col:v("caMetric")}; break;
+      case "variance-analysis": url="/api/variance-analysis"; body={...sel,date_col:v("vaDate"),metric_col:v("vaMetric"),freq:v("vaFreq")||"M",agg:v("vaAgg")||"sum",group_col:v("vaGroup")}; break;
+      case "time-series-studio":url="/api/time-series-studio"; body={...sel,date_col:v("tsDate"),metric_col:v("tsMetric"),category_col:v("tsCat"),freq:v("tsFreq")||"M",agg:v("tsAgg")||"sum"}; break;
       case "pivot":             url="/api/pivot"; body={...sel,index:v("pvIdx"),columns:v("pvCols"),values:v("pvVals"),agg:v("pvAgg")}; break;
       case "crosstab":          url="/api/crosstab"; body={...sel,row_col:v("ctRow"),col_col:v("ctCol"),normalize:v("ctNorm")==="true"}; break;
-      case "correlation":       url="/api/correlation"; body={...sel,method:v("corrM")||"pearson"}; break;
-      case "ranking":           url="/api/ranking"; body={...sel,column:v("rkCol"),n:iv("rkN",10)}; break;
+      case "correlation":       url="/api/correlation"; body={...sel,method:v("corrM")||"pearson",target_col:v("corrTarget"),ignore_ids:v("corrIgnoreIds")!=="false"}; break;
+      case "ranking":           url="/api/ranking"; body={...sel,column:v("rkCol")}; break;
       case "distribution":      url="/api/distribution"; body={...sel,column:v("distCol")}; break;
-      case "outliers":          url="/api/outliers"; body={...sel,column:v("outCol")}; break;
+      case "outliers":          url="/api/outliers"; body={...sel,column:v("outCol"),method:v("outMethod")||"iqr"}; break;
+      case "missing-analysis":  url="/api/missing-analysis"; body={...sel,group_col:v("missGroup"),target_col:v("missTarget")}; break;
       case "scatter":           url="/api/scatter"; body={...sel,x_col:v("scX"),y_col:v("scY")}; break;
-      case "sort":              url="/api/sort"; body={...sel,column:v("sortCol"),ascending:v("sortDir")==="true",n:iv("sortN",100)}; break;
-      case "slice":             url="/api/slice"; body={...sel,filters:getFilters(),n:200}; window._lastSliceParams={...body}; break;
+      case "visual-studio":     url="/api/visual-studio"; body={...sel,chart_type:v("vizType")||"auto",x_col:v("vizX"),y_col:v("vizY"),series_col:v("vizSeries"),agg:v("vizAgg")||"mean",bins:iv("vizBins",30)}; break;
       default: R.innerHTML=`<div class="err">Unknown operation.</div>`; return;
     }
     const resp = body
       ? await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
       : await fetch(url);
-    const data=await resp.json();
+    let data=await resp.json();
     if(data.error){ R.innerHTML=`<div class="err">⚠ ${data.error}</div>`; return; }
     renderResult(op,data,R);
   }catch(e){ R.innerHTML=`<div class="err">⚠ Request failed: ${e.message}</div>`; }
@@ -1104,13 +1574,65 @@ function v(id){ const el=ge(id); return el?el.value:""; }
 function iv(id,def){ const n=parseInt(v(id)); return isNaN(n)?def:n; }
 function fmt(n){ if(n===null||n===undefined)return "—"; return typeof n==="number"?n.toLocaleString(undefined,{maximumFractionDigits:4}):n; }
 
-function tbl(rows,cols,limit=500){
+function tbl(rows,cols,limit=Infinity,opts={}){
+  return renderDataTable({rows,cols,limit,compact:!!opts.compact,name:opts.name||S.currentOp});
+}
+
+function formatCell(v,col){
+  if(v===null||v===undefined)return "";
+  if(typeof v==="number"){
+    const lc=String(col).toLowerCase();
+    if(/(^id$|_id$|^id_|code|sku|zip|postal|phone)/.test(lc))return String(v);
+    if(lc.includes("pct")||lc.includes("percent"))return `${v.toLocaleString(undefined,{maximumFractionDigits:2})}%`;
+    return v.toLocaleString(undefined,{maximumFractionDigits:4});
+  }
+  return escHtml(v);
+}
+
+function renderDataTable({rows=[],cols=[],limit=Infinity,compact=false,name="table"}){
   if(!rows||!rows.length)return`<p style="color:var(--muted);font-size:13px">No data.</p>`;
-  const d=rows.slice(0,limit);
-  return`<div class="tbl-wrap"><table class="panda-table">
-    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead>
-    <tbody>${d.map(r=>`<tr>${cols.map(c=>`<td>${r[c]??""}</td>`).join("")}</tr>`).join("")}</tbody>
-  </table></div>${rows.length>limit?`<p style="color:var(--muted);font-size:12px;margin-top:6px">Showing ${limit} of ${rows.length} rows.</p>`:""}`;
+  const key=`tbl_${String(name).replace(/[^a-z0-9_]/gi,"_")}_${cols.length}_${rows.length}`;
+  if(!S.tableState[key])S.tableState[key]={page:1,pageSize:50,sortCol:null,sortDir:1,search:""};
+  const st=S.tableState[key];
+  let data=[...rows];
+  if(st.search){
+    const q=st.search.toLowerCase();
+    data=data.filter(r=>cols.some(c=>String(r[c]??"").toLowerCase().includes(q)));
+  }
+  if(st.sortCol){
+    data.sort((a,b)=>{
+      const av=a[st.sortCol], bv=b[st.sortCol];
+      if(typeof av==="number"&&typeof bv==="number")return (av-bv)*st.sortDir;
+      return String(av??"").localeCompare(String(bv??""))*st.sortDir;
+    });
+  }
+  const effectiveLimit=Number.isFinite(limit)?limit:data.length;
+  const capped=data.slice(0,effectiveLimit);
+  const pages=Math.max(1,Math.ceil(capped.length/st.pageSize));
+  st.page=Math.min(st.page,pages);
+  const start=(st.page-1)*st.pageSize;
+  const visible=capped.slice(start,start+st.pageSize);
+  window._tableAction=(key,action,arg)=>{
+    const s=S.tableState[key];
+    if(action==="search"){s.search=arg;s.page=1;}
+    if(action==="sort"){s.sortDir=s.sortCol===arg?-s.sortDir:1;s.sortCol=arg;}
+    if(action==="page"){s.page=Math.max(1,Math.min(s.page+arg,Math.ceil(capped.length/s.pageSize)||1));}
+    renderResult(S.currentOp,window._lastResult,document.getElementById("resultPanel"));
+  };
+  return`
+    <div class="tbl-tools">
+      <input class="tbl-search" placeholder="Search table" value="${escHtml(st.search)}" oninput="_tableAction('${key}','search',this.value)"/>
+      <div class="tbl-pager">
+        <button class="btn-export" onclick="_tableAction('${key}','page',-1)">Prev</button>
+        <span>Page ${st.page} / ${pages}</span>
+        <button class="btn-export" onclick="_tableAction('${key}','page',1)">Next</button>
+        <span>${visible.length} shown of ${data.length.toLocaleString()}</span>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table class="panda-table ${compact?'compact':''}">
+      <thead><tr>${cols.map(c=>`<th onclick="_tableAction('${key}','sort','${escAttr(c)}')">${escHtml(c)}${st.sortCol===c?(st.sortDir>0?" ↑":" ↓"):""}</th>`).join("")}</tr></thead>
+      <tbody>${visible.map(r=>`<tr>${cols.map(c=>`<td>${formatCell(r[c],c)}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>`;
 }
 
 function badge(label){
@@ -1131,16 +1653,40 @@ function codePanel(code){
   </div>`;
 }
 function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function escAttr(s){ return String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+
+function renderExportBar({
+  name,
+  rows,
+  cols,
+  fullExport,
+  chartId
+}){
+  if((!rows||!rows.length)&&!chartId)return"";
+  window._lastExport={rows:rows||[],cols:cols||[],name:name||"result"};
+  return`<div class="export-bar">
+    <span class="export-label">${fullExport?"Full query export available":"Visible result export"}</span>
+    ${rows&&rows.length?`<button class="btn-export" onclick="exportCSV()">CSV</button>
+    <button class="btn-export" onclick="exportXLSX()">Excel</button>`:""}
+    ${chartId?`<button class="btn-export" onclick="exportChartPNG('${chartId}')">PNG</button>`:""}
+  </div>`;
+}
+
+function renderChartActions({
+  chartId,
+  dataExportName,
+  canExportPng,
+  canExportData
+}){
+  return`<div class="export-bar">
+    <span class="export-label">Chart Actions</span>
+    ${canExportPng?`<button class="btn-export" onclick="exportChartPNG('${chartId}')">PNG</button>`:""}
+    ${canExportData?`<button class="btn-export" onclick="exportCSV()">Data CSV</button><button class="btn-export" onclick="exportXLSX()">Data Excel</button>`:""}
+  </div>`;
+}
 
 function exportBar(rows,cols,name="result"){
-  if(!rows||!rows.length)return"";
-  // Store for deferred export
-  window._lastExport={rows,cols,name};
-  return`<div class="export-bar">
-    <span class="export-label">Export</span>
-    <button class="btn-export" onclick="exportCSV()">CSV</button>
-    <button class="btn-export" onclick="exportXLSX()">Excel</button>
-  </div>`;
+  return renderExportBar({name,rows,cols,fullExport:false});
 }
 
 function exportCSV(){
@@ -1156,6 +1702,13 @@ async function exportXLSX(){
   dl(await resp.blob(),`${name}.xlsx`);
 }
 function dl(blob,filename){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); }
+function dataUrlToBlob(dataUrl){
+  const [meta,b64]=dataUrl.split(",");
+  const mime=(meta.match(/:(.*?);/)||[])[1]||"application/octet-stream";
+  const bin=atob(b64); const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  return new Blob([bytes],{type:mime});
+}
 
 async function exportFullCSV(){
   const params=window._lastSliceParams||{};
@@ -1173,31 +1726,195 @@ async function exportFullXLSX(){
 }
 
 /* ── Result renderers ────────────────────────────────── */
+function inferRowsCols(d){
+  if(d.rows&&d.cols)return {rows:d.rows,cols:d.cols};
+  if(d.table_rows&&d.table_cols)return {rows:d.table_rows,cols:d.table_cols};
+  if(d.col_info)return {rows:d.col_info,cols:["column","dtype","unique","missing","missing_pct"]};
+  if(d.largest)return {rows:d.largest,cols:d.cols||Object.keys(d.largest[0]||{})};
+  if(d.top_positive||d.top_negative){
+    const rows=[...(d.top_positive||[]),...(d.top_negative||[])];
+    return {rows,cols:["col1","col2","corr"]};
+  }
+  return {rows:[],cols:[]};
+}
+
+function renderMeta(meta){
+  if(!meta)return"";
+  return`<div class="export-bar" style="margin:0 0 10px">
+    <span class="export-label">Total rows scanned: ${fmt(meta.total_rows_scanned)}</span>
+    <span class="export-label">Result rows produced: ${fmt(meta.result_rows_produced)}</span>
+    <span class="export-label">Rows currently displayed: ${fmt(meta.rows_currently_displayed)}</span>
+  </div>`;
+}
+
+function scalarCards(d){
+  const skip=new Set(["rows","cols","table_rows","table_cols","echarts","echarts_count","echarts_pct","echarts_hist","echarts_box","code","html","result_meta","export_name","full_export_supported","largest","smallest","top_positive","top_negative","col_info","title","type","chart_type"]);
+  const items=Object.entries(d).filter(([k,v])=>!skip.has(k)&&["string","number","boolean"].includes(typeof v)).slice(0,10);
+  if(!items.length)return"";
+  return`<div class="sg">${items.map(([k,v])=>`<div class="st"><div class="st-lbl">${escHtml(k.replace(/_/g," "))}</div><div class="st-val">${fmt(v)}</div></div>`).join("")}</div>`;
+}
+
+function chartBlocks(d){
+  const blocks=[];
+  [["echarts","chart_main"],["echarts_count","chart_count"],["echarts_pct","chart_pct"],["echarts_hist","chart_hist"],["echarts_box","chart_box"]].forEach(([k,suffix])=>{
+    if(d[k]){
+      const id=`${suffix}_${Date.now()}_${blocks.length}`;
+      blocks.push({id,cfg:d[k]});
+      mountChart(id,d[k]);
+    }
+  });
+  window._lastChartId=blocks[0]?.id||"";
+  return {html:blocks.map(b=>`<div class="card card-chart"><h3>${escHtml(b.cfg.title||"Chart")}</h3><div class="chart-container" id="${b.id}"></div></div>`).join(""),firstId:blocks[0]?.id};
+}
+
+function renderGenericResult(op,d){
+  const {rows,cols}=inferRowsCols(d);
+  const meta=d.result_meta || (rows.length?{total_rows_scanned:d.total||rows.length,result_rows_produced:rows.length,rows_currently_displayed:rows.length}:null);
+  const charts=chartBlocks(d);
+  const title=d.title||d.export_name||op.replace(/-/g," ");
+  const schemaHtml=d.schema_insights?`<div class="card"><h3>Schema Insights</h3>${tbl(d.schema_insights,d.schema_insight_cols||["signal","value","why_it_matters"],100,{compact:true,name:`${op}_schema`})}</div>`:"";
+  const tableHtml=rows.length?`<div class="card"><h3>${escHtml(title)}</h3>${tbl(rows,cols,Infinity,{compact:true,name:op})}</div>`:"";
+  const htmlTable=d.html?`<div class="card"><h3>${escHtml(title)}</h3><div class="raw-tbl">${d.html}</div></div>`:"";
+  return`${renderMeta(meta)}${scalarCards(d)}${schemaHtml}${charts.html}${tableHtml||htmlTable||""}`;
+}
+
+function renderContextPanel(op,d){
+  const C=document.getElementById("contextPanel"); if(!C)return;
+  const {rows,cols}=inferRowsCols(d);
+  const exportName=d.export_name||d.title||op;
+  const insight=d.result_meta
+    ?`Scanned ${fmt(d.result_meta.total_rows_scanned)} rows and produced ${fmt(d.result_meta.result_rows_produced)} result rows.`
+    :`Result generated from the selected dataset fields.`;
+  const quickStart=op==="overview"?renderQuickStart():"";
+  C.innerHTML=`<div class="zone-title">Insights & Actions</div>
+    <div class="card"><h3>Result Context</h3><p style="color:var(--muted);font-size:13px">${insight}</p></div>
+    ${quickStart}
+    <div class="card"><h3>Actions</h3>
+      ${renderExportBar({name:exportName,rows,cols,fullExport:d.full_export_supported})}
+      ${d.echarts?renderChartActions({chartId:window._lastChartId,dataExportName:exportName,canExportPng:true,canExportData:!!rows.length}):""}
+    </div>
+    ${codePanel(d.code)}`;
+}
+
+function renderQuickStart(){
+  const metric=(S.recMetricCols&&S.recMetricCols[0])||S.numCols[0]||"";
+  const group=(S.recGroupCols&&S.recGroupCols[0])||S.catCols[0]||"";
+  const quality=typeof S.qualityScore==="number"?`<p style="color:var(--muted);font-size:13px">Data quality score: <strong style="color:var(--text)">${S.qualityScore}</strong>/100.</p>`:"";
+  const ideas=[];
+  if(metric&&group)ideas.push(`<button class="btn-export" onclick="jumpToOp('group-analysis')">Compare ${escHtml(metric)} by ${escHtml(group)}</button>`);
+  if(metric)ideas.push(`<button class="btn-export" onclick="jumpToOp('distribution')">Inspect ${escHtml(metric)} distribution</button>`);
+  if(group)ideas.push(`<button class="btn-export" onclick="jumpToOp('value-counts')">Profile ${escHtml(group)} values</button>`);
+  ideas.push(`<button class="btn-export" onclick="jumpToOp('visual-studio')">Build a chart</button>`);
+  return `<div class="card"><h3>Recommended Next Steps</h3>${quality}
+    <div class="context-actions">${ideas.join("")}</div></div>`;
+}
+
+function jumpToOp(op){
+  S.currentOp=op;
+  document.querySelectorAll(".op-btn").forEach(b=>b.classList.toggle("active",b.dataset.op===op));
+  renderParams(op);
+}
+
+function showToast(msg, ms=2600){
+  const host=document.getElementById("toastHost");
+  if(!host){ return; } // defensive: never block the caller if the host is missing
+  const el=document.createElement("div");
+  el.className="toast";
+  el.textContent=msg;
+  host.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  setTimeout(()=>{
+    el.classList.remove("show"); el.classList.add("hide");
+    setTimeout(()=>el.remove(), 220);
+  }, ms);
+}
+
+function navigateToOp(op){
+  const btn=document.querySelector(`.op-btn[data-op="${op}"]`);
+  if(!btn) return false; // fall back gracefully if the sidebar item ever changes
+  document.querySelectorAll(".op-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  S.currentOp=op;
+  renderParams(op);
+  btn.scrollIntoView({block:"nearest"});
+  return true;
+}
+
 function renderResult(op,d,R){
+  // Route successful API payloads to specialized views; unknown result shapes
+  // fall back to the generic table/chart renderer instead of losing output.
+  window._lastResult=d;
+  R.innerHTML=renderGenericResult(op,d);
+  renderContextPanel(op,d);
+  return;
   switch(op){
     case "overview":          R.innerHTML=renderOverview(d);      break;
     case "column-profiler":   R.innerHTML=renderProfiler(d);      break;
     case "preview":           R.innerHTML=renderPreview(d);       break;
-    case "summary":           R.innerHTML=renderSummary(d);       break;
-    case "central-tendency":  R.innerHTML=renderCT(d);            break;
-    case "std-variance":      R.innerHTML=renderStdVar(d);        break;
-    case "skewness-kurtosis": R.innerHTML=renderSkewKurt(d);      break;
-    case "quantile":          R.innerHTML=renderQuantile(d);      break;
-    case "covariance":        R.innerHTML=renderCov(d);           break;
     case "value-counts":      R.innerHTML=renderVC(d);            break;
-    case "frequency":         R.innerHTML=renderFrequency(d);     break;
     case "group-analysis":    R.innerHTML=renderGroupAnalysis(d); break;
+    case "segment-studio":    R.innerHTML=renderSegmentStudio(d); break;
     case "pivot":             R.innerHTML=renderHTMLTable(d,"Pivot Table"); break;
     case "crosstab":          R.innerHTML=renderHTMLTable(d,"Crosstab");    break;
     case "correlation":       R.innerHTML=renderCorr(d);          break;
     case "ranking":           R.innerHTML=renderRanking(d);       break;
     case "distribution":      R.innerHTML=renderDist(d);          break;
-    case "outliers":          R.innerHTML=renderOutliers(d);      break;
     case "scatter":           R.innerHTML=renderScatter(d);       break;
+    case "visual-studio":     R.innerHTML=renderVisualStudio(d);  break;
     case "sort":              R.innerHTML=renderSort(d);          break;
     case "slice":             R.innerHTML=renderSlice(d);         break;
     default: R.innerHTML=`<pre style="font-size:11px">${JSON.stringify(d,null,2)}</pre>`;
   }
+}
+
+async function openSavedDataset(id){
+  const resp=await fetch(`/api/local-datasets/${id}/open`,{method:"POST"});
+  const d=await resp.json();
+  if(d.error){alert(d.error);return;}
+  S.filename=d.filename||"dataset";
+  const cr=await fetch("/api/columns"); const cd=await cr.json();
+  loadCols(cd); S.hasFile=true; populateSelBar();
+  document.getElementById("sbFilename").textContent=S.filename;
+  updateNav();
+  closeDatasetModal();
+  S.currentOp="overview";
+  document.querySelectorAll(".op-btn").forEach(b=>b.classList.toggle("active",b.dataset.op==="overview"));
+  showWorkspace();
+}
+
+async function deleteSavedDataset(id){
+  if(!confirm("Delete this saved dataset from local storage?"))return;
+  const resp=await fetch(`/api/local-datasets/${id}`,{method:"DELETE"});
+  const d=await resp.json();
+  if(d.error){alert(d.error);return;}
+  refreshDatasetModal();
+}
+
+function renderDatasetManager(d){
+  if(!d.local_storage){
+    return `<div class="card"><h3>Saved Datasets</h3>
+      <p style="color:var(--muted)">Local storage is available only when Panda is opened with the desktop launcher.</p>
+    </div>`;
+  }
+  const rows=d.datasets||[];
+  if(!rows.length){
+    return `<div class="card"><h3>Saved Datasets</h3>
+      <p style="color:var(--muted)">No saved datasets yet. Upload a CSV or Excel file and Panda will save it locally.</p>
+    </div>`;
+  }
+  return `<div class="card"><h3>Saved Datasets</h3>
+    <div class="tbl-wrap"><table class="panda-table">
+      <thead><tr><th>Name</th><th>File</th><th>Rows</th><th>Columns</th><th>Last Opened</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td>${r.name}</td><td>${r.original_filename}</td><td>${fmt(r.rows_count)}</td><td>${fmt(r.columns_count)}</td>
+        <td>${r.last_opened_at}</td>
+        <td style="text-align:right">
+          <button class="btn-export" onclick="openSavedDataset('${r.id}')">Open</button>
+          <button class="btn-export" onclick="deleteSavedDataset('${r.id}')">Delete</button>
+        </td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+  </div>`;
 }
 
 function renderOverview(d){
@@ -1233,6 +1950,21 @@ function renderProfiler(d){
     <div class="st"><div class="st-lbl">Skewness</div><div class="st-val">${d.skewness}</div></div>
     <div class="st"><div class="st-lbl">Kurtosis</div><div class="st-val">${d.kurtosis}</div></div>
   </div>`:`<div class="mt8">${d.top_values?tbl(d.top_values,["value","count","pct"]):""}</div>`;
+
+  let chartHtml="", chartId1=null, chartId2=null;
+  if(d.is_numeric && d.echarts_hist && d.echarts_box){
+    chartId1="chart_"+Date.now()+"_h"; chartId2="chart_"+Date.now()+"_b";
+    chartHtml=`<div class="chart-row mt8">
+      <div class="card card-chart"><h3>Distribution</h3><div class="chart-container" id="${chartId1}"></div></div>
+      <div class="card card-chart"><h3>Boxplot</h3><div class="chart-container chart-short" id="${chartId2}"></div></div>
+    </div>`;
+  } else if(d.echarts){
+    chartId1="chart_"+Date.now();
+    chartHtml=`<div class="card mt8 card-chart"><h3>Visual Profile</h3><div class="chart-container" id="${chartId1}"></div></div>`;
+  }
+  if(chartId1) mountChart(chartId1, d.echarts_hist||d.echarts);
+  if(chartId2) mountChart(chartId2, d.echarts_box);
+
   return`
   <div class="sg">
     <div class="st"><div class="st-lbl">Column</div><div class="st-val v-accent">${d.column}</div></div>
@@ -1242,7 +1974,7 @@ function renderProfiler(d){
     <div class="st"><div class="st-lbl">Unique</div><div class="st-val">${fmt(d.unique)} (${d.unique_pct}%)</div></div>
   </div>
   ${numStats}
-  ${d.chart?`<div class="card mt8 card-chart"><h3>Visual Profile</h3><img src="data:image/png;base64,${d.chart}"/></div>`:""}
+  ${chartHtml}
   ${codePanel(d.code)}`;
 }
 
@@ -1253,91 +1985,15 @@ function renderPreview(d){
   </div>${codePanel(d.code)}`;
 }
 
-function renderSummary(d){
-  const keys=["column","count","mean","std","min","25%","50%","75%","max"];
-  return`<div class="card"><h3>Statistical Summary — describe()</h3>
-    ${tbl(d.rows,keys)}
-    ${exportBar(d.rows,keys,"summary")}
-  </div>${codePanel(d.code)}`;
-}
-
-function renderCT(d){
-  return`<div class="card"><h3>Mean / Median / Mode</h3>
-    ${tbl(d.rows,["column","mean","median","mode"])}
-    ${exportBar(d.rows,["column","mean","median","mode"],"central_tendency")}
-  </div>${codePanel(d.code)}`;
-}
-
-function renderStdVar(d){
-  return`<div class="card"><h3>Standard Deviation &amp; Variance</h3>
-    <div class="tbl-wrap"><table class="panda-table">
-      <thead><tr><th>Column</th><th>Mean</th><th>Std Dev</th><th>Variance</th><th>CV %</th><th>Spread</th></tr></thead>
-      <tbody>${d.rows.map(r=>`<tr>
-        <td>${r.column}</td><td>${fmt(r.mean)}</td><td>${fmt(r.std)}</td>
-        <td>${fmt(r.variance)}</td><td>${fmt(r.cv_pct)}</td><td>${badge(r.spread)}</td>
-      </tr>`).join("")}</tbody></table></div>
-    ${exportBar(d.rows,["column","mean","std","variance","cv_pct","spread"],"std_variance")}
-  </div>${codePanel(d.code)}`;
-}
-
-function renderSkewKurt(d){
-  return`<div class="card"><h3>Skewness &amp; Kurtosis</h3>
-    <div class="tbl-wrap"><table class="panda-table">
-      <thead><tr><th>Column</th><th>Skewness</th><th>Shape</th><th>Kurtosis</th><th>Tails</th></tr></thead>
-      <tbody>${d.rows.map(r=>`<tr>
-        <td>${r.column}</td>
-        <td style="font-family:var(--mono)">${r.skewness}</td><td>${badge(r.skew_label)}</td>
-        <td style="font-family:var(--mono)">${r.kurtosis}</td><td>${badge(r.kurt_label)}</td>
-      </tr>`).join("")}</tbody></table></div>
-    ${exportBar(d.rows,["column","skewness","skew_label","kurtosis","kurt_label"],"skewness_kurtosis")}
-  </div>${codePanel(d.code)}`;
-}
-
-function renderQuantile(d){
-  return`
-  <div class="sg">
-    <div class="st"><div class="st-lbl">Q1 (P25)</div><div class="st-val v-accent">${fmt(d.q1)}</div></div>
-    <div class="st"><div class="st-lbl">Median (P50)</div><div class="st-val v-green">${fmt(d.median)}</div></div>
-    <div class="st"><div class="st-lbl">Q3 (P75)</div><div class="st-val v-accent">${fmt(d.q3)}</div></div>
-    <div class="st"><div class="st-lbl">IQR</div><div class="st-val v-pink">${fmt(d.iqr)}</div></div>
-  </div>
-  <div class="card mt8"><h3>Percentile Table — ${d.column}</h3>
-    ${tbl(d.rows,["percentile","value"])}
-    ${exportBar(d.rows,["percentile","value"],"quantile")}
-  </div>
-  ${d.chart?`<div class="card card-chart"><h3>Chart</h3><img src="data:image/png;base64,${d.chart}"/></div>`:""}
-  ${codePanel(d.code)}`;
-}
-
-function renderCov(d){
-  return`
-  <div class="card"><h3>Top Covariance Pairs</h3>
-    ${d.pairs.map(p=>`<div class="cpair">
-      <span style="color:var(--muted)">${p.col1} × ${p.col2}</span>
-      <span>${badge(p.direction)}&nbsp;<span style="font-family:var(--mono)">${fmt(p.covariance)}</span></span>
-    </div>`).join("")}
-  </div>
-  <div class="card"><h3>Covariance Matrix</h3><div class="raw-tbl">${d.html}</div></div>
-  ${codePanel(d.code)}`;
-}
-
 function renderVC(d){
+  const chartId="chart_"+Date.now();
+  mountChart(chartId, d.echarts);
   return`
   <div class="card"><h3>Value Counts — ${d.column}</h3>
     ${tbl(d.rows,["value","count","pct"])}
     ${exportBar(d.rows,["value","count","pct"],"value_counts")}
   </div>
-  <div class="card card-chart"><h3>Chart</h3><img src="data:image/png;base64,${d.chart}"/></div>
-  ${codePanel(d.code)}`;
-}
-
-function renderFrequency(d){
-  return`
-  <div class="card"><h3>Frequency Analysis — ${d.column}</h3>
-    ${tbl(d.rows,["value","count","pct","cum_pct"])}
-    ${exportBar(d.rows,["value","count","pct","cum_pct"],"frequency")}
-  </div>
-  <div class="card card-chart"><h3>Count vs Percentage</h3><img src="data:image/png;base64,${d.chart}"/></div>
+  <div class="card card-chart"><h3>Chart</h3><div class="chart-container" id="${chartId}"></div></div>
   ${codePanel(d.code)}`;
 }
 
@@ -1353,6 +2009,8 @@ function renderGroupAnalysis(d){
   const cardTitle=isCountOnly
     ?`Record Count · grouped by ${gcLabel}`
     :`${d.metric_col} — ${calcLabel} · grouped by ${gcLabel}`;
+  const chartId="chart_"+Date.now();
+  if(d.echarts) mountChart(chartId, d.echarts);
   return`
   <div class="sg">
     <div class="st"><div class="st-lbl">${isCountOnly?"Count":"Metric"}</div><div class="st-val v-pink">${metricDisplay}</div></div>
@@ -1364,8 +2022,49 @@ function renderGroupAnalysis(d){
     ${tbl(d.rows,d.cols)}
     ${exportBar(d.rows,d.cols,"group_analysis")}
   </div>
-  ${d.chart?`<div class="card card-chart"><h3>Chart</h3><img src="data:image/png;base64,${d.chart}"/></div>`:""}
+  ${d.echarts?`<div class="card card-chart"><h3>Chart</h3><div class="chart-container" id="${chartId}"></div></div>`:""}
   ${codePanel(d.code)}`;
+}
+
+function renderSegmentStudio(d){
+  const chartId="chart_"+Date.now();
+  mountChart(chartId, d.echarts);
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Segment Column</div><div class="st-val v-accent" style="font-size:13px">${d.segment_col}</div></div>
+    <div class="st"><div class="st-lbl">Mode</div><div class="st-val">${d.mode}</div></div>
+    <div class="st"><div class="st-lbl">Segments Shown</div><div class="st-val v-green">${d.rows.length}</div></div>
+    <div class="st"><div class="st-lbl">Metric</div><div class="st-val v-pink" style="font-size:13px">${d.metric_col||"Profile only"}</div></div>
+  </div>
+  <div class="card mt8"><h3>Segment Profile</h3>
+    ${tbl(d.rows,d.cols)}
+    ${exportBar(d.rows,d.cols,"segment_studio")}
+  </div>
+  <div class="card card-chart"><h3>Segment Size</h3><div class="chart-container" id="${chartId}"></div></div>
+  ${codePanel(d.code)}`;
+}
+
+function renderVisualStudio(d){
+  const chartId="chart_"+Date.now();
+  mountChart(chartId, d.echarts);
+  return`
+  <div class="sg">
+    <div class="st"><div class="st-lbl">Chart Type</div><div class="st-val v-accent">${d.chart_type}</div></div>
+    <div class="st"><div class="st-lbl">Title</div><div class="st-val" style="font-size:13px">${d.title}</div></div>
+  </div>
+  <div class="card card-chart"><h3>${d.title}</h3>
+    <div class="chart-container chart-tall" id="${chartId}"></div>
+    <div class="export-bar"><span class="export-label">Export Visual</span>
+      <button class="btn-export" onclick="exportChartPNG('${chartId}')">PNG</button>
+    </div>
+  </div>
+  ${codePanel(d.code)}`;
+}
+function exportChartPNG(chartId){
+  const chart=_pandaCharts[chartId];
+  if(!chart)return;
+  const url=chart.getDataURL({type:"png", pixelRatio:2, backgroundColor:"#0e0e14"});
+  dl(dataUrlToBlob(url), "panda_visual.png");
 }
 
 function renderHTMLTable(d,title){
@@ -1381,31 +2080,35 @@ function renderCorr(d){
   const negRows=d.top_negative.map(p=>`<div class="cpair">
     <span style="color:var(--muted)">${p.col1} × ${p.col2}</span>
     <span class="badge b-red">${p.corr}</span></div>`).join("");
+  const chartId="chart_"+Date.now();
+  mountChart(chartId, d.echarts);
   return`
   <div class="two-col">
     <div class="card"><h3>Top Positive Pairs</h3>${posRows||"<p style='color:var(--muted)'>None</p>"}</div>
     <div class="card"><h3>Top Negative Pairs</h3>${negRows||"<p style='color:var(--muted)'>None</p>"}</div>
   </div>
   <div class="card card-chart"><h3>Correlation Heatmap (${d.method})</h3>
-    <img src="data:image/png;base64,${d.chart}"/>
+    <div class="chart-container chart-tall" id="${chartId}"></div>
   </div>${codePanel(d.code)}`;
 }
 
 function renderRanking(d){
   return`
   <div class="two-col">
-    <div class="card"><h3>Top ${d.n} Largest — ${d.column}</h3>
-      ${tbl(d.largest,d.cols,d.n)}
+    <div class="card"><h3>Largest to Smallest — ${d.column}</h3>
+      ${tbl(d.largest,d.cols)}
       ${exportBar(d.largest,d.cols,"ranking_top")}
     </div>
-    <div class="card"><h3>Top ${d.n} Smallest — ${d.column}</h3>
-      ${tbl(d.smallest,d.cols,d.n)}
+    <div class="card"><h3>Smallest to Largest — ${d.column}</h3>
+      ${tbl(d.smallest,d.cols)}
       ${exportBar(d.smallest,d.cols,"ranking_bottom")}
     </div>
   </div>${codePanel(d.code)}`;
 }
 
 function renderDist(d){
+  const chartId="chart_"+Date.now();
+  mountChart(chartId, d.echarts);
   return`
   <div class="sg">
     <div class="st"><div class="st-lbl">Mean</div><div class="st-val v-pink">${fmt(d.mean)}</div></div>
@@ -1417,27 +2120,13 @@ function renderDist(d){
   </div>
   <div class="flex-row mt8">${badge(d.skew_label)}&nbsp;${badge(d.kurt_label)}</div>
   <div class="card mt12 card-chart"><h3>Histogram — ${d.column}</h3>
-    <img src="data:image/png;base64,${d.chart}"/>
-  </div>${codePanel(d.code)}`;
-}
-
-function renderOutliers(d){
-  return`
-  <div class="sg">
-    <div class="st"><div class="st-lbl">Q1</div><div class="st-val">${fmt(d.q1)}</div></div>
-    <div class="st"><div class="st-lbl">Q3</div><div class="st-val">${fmt(d.q3)}</div></div>
-    <div class="st"><div class="st-lbl">IQR</div><div class="st-val v-accent">${fmt(d.iqr)}</div></div>
-    <div class="st"><div class="st-lbl">Lower Fence</div><div class="st-val">${fmt(d.lower)}</div></div>
-    <div class="st"><div class="st-lbl">Upper Fence</div><div class="st-val">${fmt(d.upper)}</div></div>
-    <div class="st"><div class="st-lbl">Outliers</div>
-      <div class="st-val ${d.outlier_count>0?'v-pink':'v-green'}">${d.outlier_count} (${d.outlier_pct}%)</div></div>
-  </div>
-  <div class="card mt12 card-chart"><h3>Boxplot — ${d.column}</h3>
-    <img src="data:image/png;base64,${d.chart}"/>
+    <div class="chart-container" id="${chartId}"></div>
   </div>${codePanel(d.code)}`;
 }
 
 function renderScatter(d){
+  const chartId="chart_"+Date.now();
+  mountChart(chartId, d.echarts);
   return`
   <div class="sg">
     <div class="st"><div class="st-lbl">X Column</div><div class="st-val v-accent">${d.x_col}</div></div>
@@ -1446,7 +2135,7 @@ function renderScatter(d){
       <div class="st-val ${Math.abs(d.correlation)>0.7?'v-green':Math.abs(d.correlation)>0.4?'v-amber':'v-pink'}">${d.correlation}</div></div>
   </div>
   <div class="card mt12 card-chart"><h3>Scatter Plot</h3>
-    <img src="data:image/png;base64,${d.chart}"/>
+    <div class="chart-container chart-tall" id="${chartId}"></div>
   </div>${codePanel(d.code)}`;
 }
 
