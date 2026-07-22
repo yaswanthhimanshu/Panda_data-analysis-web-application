@@ -659,6 +659,7 @@ def upload():
 def columns():
     df, err = load_df_from_storage()
     if err: return jsonify({"error": err}), 400
+    item = current_dataset_item() or {}
     id_pats   = ["id", "num", "number", "row", "index", "key", "code", "no", "nr"]
     flag_pats = ["flag", "is_", "has_", "senior", "binary", "bool",
                  "churn", "defaulted", "cancelled", "renewed", "active"]
@@ -694,6 +695,7 @@ def columns():
     profile = dataset_quality_profile(df)
     datetime_cols = list(dict.fromkeys(profile["datetime_cols"] + detect_datetime_columns(df)))
     return jsonify({
+        "filename":           item.get("original_filename", ""),
         "all":                df.columns.tolist(),
         "numeric":            numeric_cols,
         "categorical":        categorical_cols,

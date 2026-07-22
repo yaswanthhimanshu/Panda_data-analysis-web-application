@@ -413,6 +413,128 @@ select option{color:var(--text);background:var(--bg3)}
   .tbl-pager{width:100%;justify-content:space-between}
 }
 
+/* ── Desktop workbench shell ────────────────────────────────────── */
+#workspace{background:var(--bg)}
+.sidebar{width:228px;overflow:hidden}
+.op-nav{flex:1;min-height:0;overflow-y:auto;padding:8px 0 16px}
+.sb-file{flex-shrink:0;padding:11px 16px}
+.op-section{padding:16px 16px 5px;letter-spacing:1px}
+.op-btn{min-height:38px;padding:9px 16px;font-size:13px}
+.main-panel{position:relative;min-width:0}
+
+.sel-bar{min-height:68px;padding:10px 20px;gap:12px;background:#0f0f18}
+.sel-label,.p-label{letter-spacing:0;font-family:var(--body);font-size:11px;font-weight:500;text-transform:none}
+.sel-input{min-height:38px;font-size:13px}
+.workspace-tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+.workspace-tool{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;
+  padding:7px 12px;border:1px solid var(--border2);border-radius:var(--r);
+  background:var(--bg3);color:var(--muted);font-family:var(--body);font-size:12px;
+  cursor:pointer;transition:background var(--t),border-color var(--t),color var(--t)}
+.workspace-tool:hover,.workspace-tool.active{background:var(--asoft);border-color:var(--aglow);color:var(--text)}
+.workspace-tool-symbol{font-family:var(--mono);font-size:14px;color:var(--accent)}
+
+.workbench-grid{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr);grid-template-areas:"params result";overflow:hidden}
+.params-shell{grid-area:params;display:flex;flex-direction:column;width:300px;min-width:260px;
+  max-width:420px;min-height:0;resize:horizontal;overflow:hidden;background:var(--bg2);
+  border-right:1px solid var(--border)}
+.params-shell.is-hidden{display:none}
+.params-shell-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-height:45px;padding:0 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.params-shell-title{font-size:12px;font-weight:600;color:var(--text)}
+.panel-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border:1px solid transparent;border-radius:var(--r);background:transparent;color:var(--muted);
+  font-size:16px;cursor:pointer;transition:all var(--t)}
+.panel-icon-btn:hover{border-color:var(--border2);background:var(--bg3);color:var(--text)}
+.params{grid-area:auto;flex:1;min-height:0;padding:18px;overflow-y:auto;border-right:0}
+.params-form{gap:14px}
+.p-input{width:100%;min-width:0;min-height:39px;padding:9px 11px}
+.btn-run{min-height:40px;margin-top:2px}
+
+.result{grid-area:result;padding:22px 24px 36px;min-width:0;overflow:auto;scrollbar-gutter:stable}
+.card{padding:18px;margin-bottom:16px}
+.card h3{font-size:12px;letter-spacing:0;text-transform:none;color:var(--text);margin-bottom:12px}
+.sg{grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin-bottom:16px}
+.st{min-height:76px;padding:12px 14px}
+.st-lbl{font-family:var(--body);font-size:10px;letter-spacing:0;line-height:1.3}
+.st-val{font-size:17px}
+.tbl-wrap{max-height:62vh}
+table.panda-table{font-family:var(--body);font-size:12px}
+table.panda-table th{padding:9px 11px;font-size:11px}
+table.panda-table td{padding:8px 11px}
+
+.context-backdrop{position:absolute;inset:0;z-index:69;background:rgba(5,5,9,.48);
+  opacity:0;pointer-events:none;transition:opacity var(--t)}
+.context-backdrop.open{opacity:1;pointer-events:auto}
+.context-panel{position:absolute;z-index:70;top:0;right:0;bottom:0;width:min(390px,calc(100% - 28px));
+  max-height:none;display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden;
+  background:var(--bg2);border:0;border-left:1px solid var(--border2);
+  box-shadow:-18px 0 40px rgba(0,0,0,.34);transform:translateX(102%);
+  transition:transform 220ms ease}
+.context-panel.open{transform:translateX(0)}
+.context-drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-height:52px;padding:0 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.context-drawer-title{font-size:13px;font-weight:600;color:var(--text)}
+.context-drawer-body{padding:16px 18px 26px;overflow-y:auto;min-height:0}
+.context-drawer-body>.card{margin-bottom:12px;padding:16px}
+.context-drawer-body>.code-panel{margin-top:12px}
+
+.guide-panel{position:relative;z-index:30;max-height:44vh;overflow:hidden;background:#0f0f18}
+.guide-toggle{position:sticky;top:0;z-index:2;min-height:43px;padding:9px 20px;
+  background:#0f0f18;border-bottom:1px solid transparent}
+.guide-toggle.open{border-bottom-color:var(--border)}
+.guide-body{padding:14px 20px 20px;max-height:calc(44vh - 43px);overflow-y:auto;overscroll-behavior:contain}
+.guide-body.visible{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.guide-section-title{font-family:var(--body);font-size:10px;letter-spacing:0;font-weight:600}
+.guide-desc{font-size:12.5px;line-height:1.55}
+.guide-code{font-size:11px;max-height:150px;overflow:auto}
+.guide-body .tbl-wrap{max-height:240px}
+
+@media (max-width:1250px){
+  .sidebar{width:214px}
+  .params-shell{width:276px;min-width:240px}
+  .result{padding:20px}
+  .guide-body.visible{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media (max-width:1180px) and (min-width:901px){
+  .workbench-grid{display:block;position:relative}
+  .params-shell{display:flex;position:absolute;z-index:60;inset:0 auto 0 0;
+    width:300px;max-width:calc(100% - 36px);resize:none;
+    box-shadow:18px 0 40px rgba(0,0,0,.38);transform:translateX(0);
+    transition:transform 220ms ease}
+  .params-shell.is-hidden{display:flex;transform:translateX(-103%)}
+  .result{height:100%;width:100%}
+}
+
+@media (max-width:900px){
+  #workspace{height:calc(100vh - 56px);min-height:0;overflow:hidden;flex-direction:column}
+  .sidebar{width:100%;height:auto;max-height:52px;overflow:hidden;border-right:0;border-bottom:1px solid var(--border)}
+  .op-nav{display:flex;overflow-x:auto;padding:7px 10px}
+  .op-section,.sb-file{display:none}
+  .op-btn{width:auto;min-width:max-content;min-height:36px;padding:7px 11px;border-left:0;border-bottom:2px solid transparent}
+  .op-btn.active{border-left-color:transparent;border-bottom-color:var(--accent)}
+  .main-panel{flex:1;overflow:hidden}
+  .sel-bar{min-height:60px;padding:8px 12px;overflow-x:auto;flex-wrap:nowrap}
+  .workspace-tools{margin-left:0}
+  .workbench-grid{display:block;position:relative;overflow:hidden}
+  .params-shell{display:flex;position:absolute;z-index:60;inset:0 auto 0 0;width:min(340px,calc(100% - 28px));
+    max-width:none;resize:none;box-shadow:18px 0 40px rgba(0,0,0,.38);transform:translateX(0);transition:transform 220ms ease}
+  .params-shell.is-hidden{display:flex;transform:translateX(-103%)}
+  .result{height:100%;padding:18px}
+  .guide-body.visible{grid-template-columns:minmax(0,1fr)}
+}
+
+@media (max-width:600px){
+  .workspace-tool-label{display:none}
+  .workspace-tool{width:38px;padding:7px}
+  .sel-group{width:auto;min-width:126px}
+  .sel-input{width:auto}
+  .result{padding:14px}
+  .card{padding:14px}
+  .sg{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
 </style>
 </head>
 <body>
@@ -515,14 +637,28 @@ select option{color:var(--text);background:var(--bg3)}
       <div id="selColsWrap" style="display:none">
         <select class="sel-input" id="selColsList" multiple></select>
       </div>
+      <div class="workspace-tools">
+        <button class="workspace-tool" id="paramsToggleBtn" onclick="toggleParamsPanel()" type="button">
+          <span class="workspace-tool-symbol">☷</span><span class="workspace-tool-label">Settings</span>
+        </button>
+        <button class="workspace-tool" id="contextToggleBtn" onclick="toggleContextPanel()" type="button">
+          <span class="workspace-tool-symbol">◫</span><span class="workspace-tool-label">Insights &amp; Actions</span>
+        </button>
+      </div>
     </div>
 
     <!-- Guide panel -->
     <div class="guide-panel" id="guidePanel" style="display:none"></div>
 
     <div class="workbench-grid">
-    <!-- Params panel -->
-    <div class="params" id="paramsPanel"></div>
+    <!-- Resizable analysis settings inspector -->
+    <aside class="params-shell" id="paramsShell">
+      <div class="params-shell-head">
+        <span class="params-shell-title" id="paramsShellTitle">Analysis settings</span>
+        <button class="panel-icon-btn" onclick="toggleParamsPanel(false)" type="button" aria-label="Close analysis settings">×</button>
+      </div>
+      <div class="params" id="paramsPanel"></div>
+    </aside>
 
     <!-- Result panel -->
     <div class="result" id="resultPanel">
@@ -531,9 +667,15 @@ select option{color:var(--text);background:var(--bg3)}
         <p>Select an operation from the sidebar<br/>and configure parameters to run it.</p>
       </div>
     </div>
-      <aside class="context-panel" id="contextPanel">
-        <div class="zone-title">Insights & Actions</div>
-        <p style="color:var(--muted);font-size:13px">Run an operation to see result context, Pandas code, and export controls.</p>
+      <div class="context-backdrop" id="contextBackdrop" onclick="toggleContextPanel(false)"></div>
+      <aside class="context-panel" id="contextPanel" aria-label="Insights and actions">
+        <div class="context-drawer-head">
+          <span class="context-drawer-title">Insights &amp; Actions</span>
+          <button class="panel-icon-btn" onclick="toggleContextPanel(false)" type="button" aria-label="Close insights and actions">×</button>
+        </div>
+        <div class="context-drawer-body">
+          <p style="color:var(--muted);font-size:13px">Run an operation to see result context, pandas code, and export controls.</p>
+        </div>
       </aside>
     </div>
 
@@ -550,7 +692,39 @@ let S = {
   currentOp:"overview",
   localStorage:false,
   tableState:{},
+  paramsCollapsed:false,
 };
+
+const NO_PARAM_OPS=new Set(["overview","data-quality-studio","column-dictionary"]);
+
+function syncWorkspaceShell(op){
+  const shell=document.getElementById("paramsShell");
+  const toggle=document.getElementById("paramsToggleBtn");
+  const title=document.getElementById("paramsShellTitle");
+  const hasSettings=!NO_PARAM_OPS.has(op);
+  if(title) title.textContent=op.replace(/-/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+  if(toggle){
+    toggle.style.display=hasSettings?"":"none";
+    toggle.classList.toggle("active",hasSettings&&!S.paramsCollapsed);
+  }
+  if(shell) shell.classList.toggle("is-hidden",!hasSettings||S.paramsCollapsed);
+}
+
+function toggleParamsPanel(force){
+  S.paramsCollapsed=typeof force==="boolean"?!force:!S.paramsCollapsed;
+  syncWorkspaceShell(S.currentOp);
+}
+
+function toggleContextPanel(force){
+  const panel=document.getElementById("contextPanel");
+  const backdrop=document.getElementById("contextBackdrop");
+  const button=document.getElementById("contextToggleBtn");
+  if(!panel)return;
+  const open=typeof force==="boolean"?force:!panel.classList.contains("open");
+  panel.classList.toggle("open",open);
+  backdrop?.classList.toggle("open",open);
+  button?.classList.toggle("active",open);
+}
 
 const MODULE_NAV = [
   ["Dataset", [["overview","Overview"],["data-quality-studio","Data Quality"],["column-dictionary","Column Dictionary"],["preview","Preview Table"]]],
@@ -585,6 +759,7 @@ async function init(){
   }catch(e){}
 }
 function loadCols(d){
+  S.filename=d.filename||S.filename;
   S.allCols=d.all; S.numCols=d.numeric; S.catCols=d.categorical;
   S.recCols=d.recommended_gb||[];     // group cols (backwards compat)
   S.recGroupCols=d.recommended_group||d.recommended_gb||[];
@@ -1347,6 +1522,7 @@ function toggleGuide(){
 function renderParams(op){
   const P=document.getElementById("paramsPanel");
   const nc=NC(); const ac=AC();
+  syncWorkspaceShell(op);
   renderGuide(op);  // always show guide for current operation
 
   const CALC_LIST=["count","sum","mean","median","mode","min","max","std","variance","share_pct","contribution_pct","diff_from_avg","rank"];
@@ -1786,14 +1962,19 @@ function renderContextPanel(op,d){
     ?`Scanned ${fmt(d.result_meta.total_rows_scanned)} rows and produced ${fmt(d.result_meta.result_rows_produced)} result rows.`
     :`Result generated from the selected dataset fields.`;
   const quickStart=op==="overview"?renderQuickStart():"";
-  C.innerHTML=`<div class="zone-title">Insights & Actions</div>
-    <div class="card"><h3>Result Context</h3><p style="color:var(--muted);font-size:13px">${insight}</p></div>
-    ${quickStart}
-    <div class="card"><h3>Actions</h3>
-      ${renderExportBar({name:exportName,rows,cols,fullExport:d.full_export_supported})}
-      ${d.echarts?renderChartActions({chartId:window._lastChartId,dataExportName:exportName,canExportPng:true,canExportData:!!rows.length}):""}
+  C.innerHTML=`<div class="context-drawer-head">
+      <span class="context-drawer-title">Insights &amp; Actions</span>
+      <button class="panel-icon-btn" onclick="toggleContextPanel(false)" type="button" aria-label="Close insights and actions">×</button>
     </div>
-    ${codePanel(d.code)}`;
+    <div class="context-drawer-body">
+      <div class="card"><h3>Result Context</h3><p style="color:var(--muted);font-size:13px">${insight}</p></div>
+      ${quickStart}
+      <div class="card"><h3>Actions</h3>
+        ${renderExportBar({name:exportName,rows,cols,fullExport:d.full_export_supported})}
+        ${d.echarts?renderChartActions({chartId:window._lastChartId,dataExportName:exportName,canExportPng:true,canExportData:!!rows.length}):""}
+      </div>
+      ${codePanel(d.code)}
+    </div>`;
 }
 
 function renderQuickStart(){
@@ -1907,7 +2088,7 @@ function renderDatasetManager(d){
       <thead><tr><th>Name</th><th>File</th><th>Rows</th><th>Columns</th><th>Last Opened</th><th></th></tr></thead>
       <tbody>${rows.map(r=>`<tr>
         <td>${r.name}</td><td>${r.original_filename}</td><td>${fmt(r.rows_count)}</td><td>${fmt(r.columns_count)}</td>
-        <td>${r.last_opened_at}</td>
+        <td>${formatLocalDateTime(r.last_opened_at)}</td>
         <td style="text-align:right">
           <button class="btn-export" onclick="openSavedDataset('${r.id}')">Open</button>
           <button class="btn-export" onclick="deleteSavedDataset('${r.id}')">Delete</button>
@@ -1915,6 +2096,18 @@ function renderDatasetManager(d){
       </tr>`).join("")}</tbody>
     </table></div>
   </div>`;
+}
+
+function formatLocalDateTime(value){
+  if(!value)return "-";
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return value;
+  const formatted=new Intl.DateTimeFormat(undefined,{
+    year:"numeric",month:"short",day:"2-digit",
+    hour:"numeric",minute:"2-digit",second:"2-digit",
+    timeZoneName:"short"
+  }).format(date);
+  return `<time datetime="${value}" title="Stored in UTC: ${value}">${formatted}</time>`;
 }
 
 function renderOverview(d){
