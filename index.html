@@ -368,10 +368,47 @@ select option{color:var(--text);background:var(--bg3)}
 .modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(6,6,10,.68);
   display:flex;align-items:center;justify-content:center;padding:24px}
 .modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);
-  max-width:720px;width:100%;max-height:80vh;overflow-y:auto;padding:22px}
+  max-width:min(1180px,calc(100vw - 48px));width:100%;max-height:84vh;
+  overflow:hidden;padding:22px}
 .modal-close{float:right;cursor:pointer;color:var(--muted);font-family:var(--ui);
   font-size:13px;font-weight:600}
 .modal-close:hover{color:var(--text)}
+.dataset-manager{clear:both;min-width:0;padding-top:8px}
+.dataset-manager-head{display:flex;align-items:center;justify-content:space-between;
+  gap:16px;margin-bottom:12px}
+.dataset-manager-head h3{margin:0;font-size:14px;color:var(--text)}
+.dataset-count{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap}
+.dataset-table-wrap{max-height:calc(84vh - 112px);overflow-y:auto;overflow-x:hidden;
+  border:1px solid var(--border);border-radius:var(--r);scrollbar-gutter:stable}
+table.dataset-table{width:100%;table-layout:fixed}
+table.dataset-table col.dataset-name-col{width:23%}
+table.dataset-table col.dataset-file-col{width:24%}
+table.dataset-table col.dataset-rows-col{width:8%}
+table.dataset-table col.dataset-columns-col{width:8%}
+table.dataset-table col.dataset-opened-col{width:21%}
+table.dataset-table col.dataset-actions-col{width:16%}
+table.dataset-table th:nth-child(3),
+table.dataset-table th:nth-child(4),
+table.dataset-table td:nth-child(3),
+table.dataset-table td:nth-child(4){text-align:right}
+.dataset-cell-text{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.dataset-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;
+  white-space:nowrap}
+.dataset-actions .btn-export{min-width:58px}
+
+@media (max-width:900px){
+  .modal-overlay{padding:12px}
+  .modal-box{max-width:calc(100vw - 24px);padding:16px}
+  table.dataset-table col.dataset-name-col{width:27%}
+  table.dataset-table col.dataset-file-col{width:27%}
+  table.dataset-table col.dataset-rows-col{width:9%}
+  table.dataset-table col.dataset-columns-col{width:9%}
+  table.dataset-table col.dataset-opened-col{width:0}
+  table.dataset-table col.dataset-actions-col{width:28%}
+  table.dataset-table th:nth-child(5),
+  table.dataset-table td:nth-child(5){display:none}
+}
 
 @media (max-width:1100px){
   .sidebar{width:210px}
@@ -1829,6 +1866,7 @@ function codePanel(code){
   </div>`;
 }
 function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function escHtmlAttr(s){ return escHtml(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 function escAttr(s){ return String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
 
 function renderExportBar({
@@ -2083,16 +2121,30 @@ function renderDatasetManager(d){
       <p style="color:var(--muted)">No saved datasets yet. Upload a CSV or Excel file and Panda will save it locally.</p>
     </div>`;
   }
-  return `<div class="card"><h3>Saved Datasets</h3>
-    <div class="tbl-wrap"><table class="panda-table">
+  return `<div class="dataset-manager">
+    <div class="dataset-manager-head">
+      <h3>Saved Datasets</h3>
+      <span class="dataset-count">${rows.length.toLocaleString()} dataset${rows.length===1?"":"s"}</span>
+    </div>
+    <div class="dataset-table-wrap"><table class="panda-table dataset-table">
+      <colgroup>
+        <col class="dataset-name-col">
+        <col class="dataset-file-col">
+        <col class="dataset-rows-col">
+        <col class="dataset-columns-col">
+        <col class="dataset-opened-col">
+        <col class="dataset-actions-col">
+      </colgroup>
       <thead><tr><th>Name</th><th>File</th><th>Rows</th><th>Columns</th><th>Last Opened</th><th></th></tr></thead>
       <tbody>${rows.map(r=>`<tr>
-        <td>${r.name}</td><td>${r.original_filename}</td><td>${fmt(r.rows_count)}</td><td>${fmt(r.columns_count)}</td>
+        <td><span class="dataset-cell-text" title="${escHtmlAttr(r.name)}">${escHtml(r.name)}</span></td>
+        <td><span class="dataset-cell-text" title="${escHtmlAttr(r.original_filename)}">${escHtml(r.original_filename)}</span></td>
+        <td>${fmt(r.rows_count)}</td><td>${fmt(r.columns_count)}</td>
         <td>${formatLocalDateTime(r.last_opened_at)}</td>
-        <td style="text-align:right">
+        <td><div class="dataset-actions">
           <button class="btn-export" onclick="openSavedDataset('${r.id}')">Open</button>
           <button class="btn-export" onclick="deleteSavedDataset('${r.id}')">Delete</button>
-        </td>
+        </div></td>
       </tr>`).join("")}</tbody>
     </table></div>
   </div>`;

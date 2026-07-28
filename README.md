@@ -153,6 +153,10 @@ Then double-click `Panda.vbs`, or run:
 python desktop.py
 ```
 
+Run the install command again after pulling a version that changes either
+requirements file. Parquet, Feather, Arrow, and ORC require PyArrow; legacy
+`.xls` files require xlrd.
+
 ### Browser development server
 
 ```powershell
@@ -184,6 +188,17 @@ Run the fast integration smoke test while iterating:
 ```powershell
 python smoke_workbench.py
 ```
+
+Run the upload-format audit after changing readers, dependencies, or packaging:
+
+```powershell
+python audit_upload_formats.py
+```
+
+It creates representative CSV, TSV, text, JSON, JSON Lines, NDJSON, XLSX,
+Parquet, Feather, Arrow IPC, ORC, Gzip, Bzip2, and ZIP payloads and sends each
+through the real upload endpoint. It also verifies that the legacy XLS reader
+is installed.
 
 Run the exhaustive audit after changing formulas, selections, endpoint payloads,
 charts, storage, or exports:

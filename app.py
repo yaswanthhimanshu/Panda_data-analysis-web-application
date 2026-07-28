@@ -8,6 +8,7 @@ so the browser UI remains a presentation layer rather than a second calculator.
 """
 
 import os, io, re, uuid, warnings, secrets, csv, tempfile, zipfile, gzip, bz2
+from importlib import resources, util
 from pathlib import Path
 import chardet
 import numpy as np
@@ -20,6 +21,22 @@ from storage import (
 )
 
 warnings.filterwarnings("ignore")
+
+
+def configure_arrow_timezone_data():
+    """Point PyArrow at Python's bundled IANA timezone data on Windows."""
+    if os.name != "nt" or os.environ.get("TZDIR"):
+        return
+    try:
+        zoneinfo_dir = resources.files("tzdata").joinpath("zoneinfo")
+        os.environ["TZDIR"] = str(zoneinfo_dir)
+    except (ModuleNotFoundError, FileNotFoundError):
+        # Parquet and Feather do not need TZDIR. ORC will return its normal
+        # dependency error if a custom installation omitted tzdata.
+        pass
+
+
+configure_arrow_timezone_data()
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 
@@ -334,6 +351,17 @@ def read_csv_bytes(raw: bytes, encoding: str, *, sep=None, compression="infer"):
     except Exception:
         return pd.read_csv(io.BytesIO(raw), encoding=encoding, sep=None, engine="python", compression=compression)
 
+
+def require_format_engine(module_name, format_name):
+    """Raise an actionable error when an advertised file reader is missing."""
+    if util.find_spec(module_name) is None:
+        raise RuntimeError(
+            f"{format_name} support is not installed in Panda. "
+            "Run `.venv\\Scripts\\python.exe -m pip install "
+            "-r requirements-desktop.txt`, then restart Panda."
+        )
+
+
 def load_dataset_bytes(filename, raw):
     """Parse one supported upload and return ``(DataFrame, encoding, format)``.
 
@@ -382,15 +410,19 @@ def load_dataset_bytes(filename, raw):
         return pd.read_json(text, encoding=encoding, lines=lines), encoding, base_ext
 
     if base_ext in ("xlsx", "xls"):
+        require_format_engine("openpyxl" if base_ext == "xlsx" else "xlrd", base_ext.upper())
         return pd.read_excel(io.BytesIO(raw)), encoding, base_ext
 
     if base_ext == "parquet":
+        require_format_engine("pyarrow", "Parquet")
         return pd.read_parquet(io.BytesIO(raw)), encoding, base_ext
 
     if base_ext in ("feather", "arrow"):
+        require_format_engine("pyarrow", "Feather/Arrow")
         return pd.read_feather(io.BytesIO(raw)), encoding, base_ext
 
     if base_ext == "orc":
+        require_format_engine("pyarrow", "ORC")
         return pd.read_orc(io.BytesIO(raw)), encoding, base_ext
 
     raise ValueError("Unsupported file type.")
