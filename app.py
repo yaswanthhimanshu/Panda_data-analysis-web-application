@@ -208,8 +208,20 @@ def to_numeric_clean(s):
     cleaned = s.astype(str).str.strip().str.replace(r"[,$\s]", "", regex=True)
     return pd.to_numeric(cleaned, errors="coerce")
 
+def first_mode(values):
+    """Return the first deterministic mode for pandas group aggregations."""
+    modes = values.dropna().mode()
+    return modes.iloc[0] if not modes.empty else np.nan
+
 def normalize_agg(agg):
-    return "var" if agg == "variance" else agg
+    """Resolve a UI aggregation name to a supported pandas aggregation."""
+    if agg == "variance":
+        return "var"
+    if agg == "mode":
+        return first_mode
+    if agg in {"mean", "sum", "count", "min", "max", "median", "std"}:
+        return agg
+    raise ValueError(f"Unsupported aggregation: {agg}")
 
 def numeric_like_frame(df):
     out = {}
@@ -541,15 +553,11 @@ def build_segment_series(df, col, mode="category", bins=5):
         return None, str(e)
 
 def apply_selection(df, params):
-    """Apply selected columns, then a row filter, then an end-exclusive row slice.
+    """Apply a row filter, row slice, then the selected-column projection.
 
     Every analytical route calls this once so tables, metrics, charts, and exports
     all operate on the same selected DataFrame and cannot silently disagree.
     """
-    cols = params.get("columns")
-    if cols and cols != "all" and isinstance(cols, list):
-        valid = [c for c in cols if c in df.columns]
-        if valid: df = df[valid]
     fcol = params.get("filter_col"); fop = params.get("filter_op"); fval = params.get("filter_val")
     if fcol and fop and fval is not None and fcol in df.columns:
         s = df[fcol]
@@ -569,6 +577,10 @@ def apply_selection(df, params):
     if rs is not None and re is not None:
         try: df = df.iloc[int(rs):int(re)]
         except Exception: pass
+    cols = params.get("columns")
+    if cols and cols != "all" and isinstance(cols, list):
+        valid = [c for c in cols if c in df.columns]
+        if valid: df = df[valid]
     return df
 
 def detect_datetime_columns(df, sample_size=1000):
@@ -743,10 +755,11 @@ def columns():
 
 # ── Dataset understanding: overview and column dictionary ─────────────────────
 
-@app.route("/api/overview")
+@app.route("/api/overview", methods=["GET", "POST"])
 def overview():
     df, err = load_df_from_storage()
     if err: return jsonify({"error": err}), 400
+    df = apply_selection(df, request.get_json(silent=True) or {})
     total = df.shape[0] * df.shape[1]; miss = int(df.isnull().sum().sum())
     profile = dataset_quality_profile(df)
     cols = [{"column": c, "dtype": str(df[c].dtype),
@@ -775,10 +788,11 @@ def overview():
 
 # ── Dataset preview ────────────────────────────────────────────────────────────
 
-@app.route("/api/column-dictionary")
+@app.route("/api/column-dictionary", methods=["GET", "POST"])
 def column_dictionary():
     df, err = load_df_from_storage()
     if err: return jsonify({"error": err}), 400
+    df = apply_selection(df, request.get_json(silent=True) or {})
     rows = []
     for c in df.columns:
         s = df[c]
@@ -1102,12 +1116,16 @@ def pivot():
     d = request.get_json(silent=True) or {}; df = apply_selection(df, d)
     idx = d.get("index", ""); cols = d.get("columns", "")
     vals = d.get("values", ""); agg = d.get("agg", "mean")
-    aggfunc = normalize_agg(agg)
     try:
+        aggfunc = normalize_agg(agg)
         pt = pd.pivot_table(df, index=idx, columns=cols, values=vals,
                             aggfunc=aggfunc, fill_value=0)
+        code_agg = (
+            "lambda s: s.mode().iloc[0] if not s.mode().empty else np.nan"
+            if agg == "mode" else repr(aggfunc)
+        )
         return jsonify({"html": pt.round(4).to_html(classes="panda-table", border=0),
-                        "code": f'pd.pivot_table(df, index="{idx}", columns="{cols}", values="{vals}", aggfunc="{aggfunc}")'})
+                        "code": f'pd.pivot_table(df, index="{idx}", columns="{cols}", values="{vals}", aggfunc={code_agg})'})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -1393,13 +1411,14 @@ def group_comparison():
     work = pd.DataFrame({"group": df[group_col].fillna("(Missing)").astype(str),
                          "metric": to_numeric_clean(df[metric])}).dropna()
     if work.empty: return jsonify({"error": "No numeric metric values found."}), 400
+    try:
+        aggfunc = normalize_agg(agg)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     grouped = work.groupby("group")["metric"]
-    vals = grouped.sum() if agg == "sum" else grouped.median() if agg == "median" else grouped.count() if agg == "count" else grouped.mean()
-    overall = float(vals.mean()) if agg == "count" else (
-        work["metric"].sum() if agg == "sum" else
-        work["metric"].median() if agg == "median" else
-        work["metric"].mean()
-    )
+    vals = grouped.agg(aggfunc)
+    overall_raw = work["metric"].agg(aggfunc)
+    overall = float(overall_raw) if pd.notna(overall_raw) else np.nan
     total_sum = float(work["metric"].sum())
     res = vals.sort_values(ascending=False).reset_index(); res.columns = [group_col, "value"]
     res["overall"] = round(float(overall), 4); res["difference"] = (res["value"] - overall).round(4)
@@ -1409,9 +1428,11 @@ def group_comparison():
     res["contribution_pct"] = res["value"].div(total_sum).mul(100).round(2) if total_sum and agg == "sum" else None
     res["rank"] = range(1, len(res) + 1)
     rows = json_safe_records(res.round(4))
+    chart_values = [None if pd.isna(value) else round(float(value), 4)
+                    for value in res["value"].tolist()[::-1]]
     echarts = bar_chart(f"{agg_label(agg)} of {metric} by {group_col}",
                         res[group_col].astype(str).tolist()[::-1],
-                        [{"name": agg_label(agg), "data": res["value"].round(4).tolist()[::-1], "color": ACCENT}],
+                        [{"name": agg_label(agg), "data": chart_values, "color": ACCENT}],
                         y_label=agg_label(agg), horizontal=True)
     return jsonify(with_meta({
         "title": "Group Comparison / Lift Analysis", "group_col": group_col,
@@ -1419,7 +1440,9 @@ def group_comparison():
         "rows": rows,
         "cols": [group_col, "rank", "value", "overall", "difference", "lift_pct", "share_pct", "contribution_pct"],
         "echarts": echarts,
-        "code": f'g=df.groupby("{group_col}")["{metric}"].{agg}()\n(g-g.mean())/g.mean()*100',
+        "code": (f'g=df.groupby("{group_col}")["{metric}"].agg('
+                 f'{"lambda s: s.mode().iloc[0] if not s.mode().empty else np.nan" if agg == "mode" else repr(aggfunc)})'
+                 '\n(g-g.mean())/g.mean()*100'),
     }, export_name="group_comparison", total_scanned=len(df),
        result_rows=len(rows), displayed_rows=len(rows), full_export=True))
 

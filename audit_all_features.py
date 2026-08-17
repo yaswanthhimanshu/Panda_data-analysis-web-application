@@ -152,6 +152,36 @@ class Audit:
         )
         self.ok("column selection", selected["cols"] == ["region", "sales"])
 
+        selected_overview, _ = self.request(
+            "overview column selection", "/api/overview",
+            {"columns": ["region", "sales"]},
+        )
+        self.ok("overview selected shape", selected_overview["columns"] == 2)
+        self.ok(
+            "overview selected columns",
+            [row["column"] for row in selected_overview["col_info"]] == ["region", "sales"],
+        )
+
+        selected_dictionary, _ = self.request(
+            "dictionary column selection", "/api/column-dictionary",
+            {"columns": ["region", "sales"]},
+        )
+        self.ok(
+            "dictionary selected columns",
+            [row["column"] for row in selected_dictionary["rows"]] == ["region", "sales"],
+        )
+
+        filtered_projection, _ = self.request(
+            "filter outside selected columns", "/api/preview",
+            {
+                "mode": "head", "n": 100,
+                "columns": ["sales"],
+                "filter_col": "region", "filter_op": "eq", "filter_val": "North",
+            },
+        )
+        self.ok("filter outside projection columns", filtered_projection["cols"] == ["sales"])
+        self.ok("filter outside projection count", filtered_projection["total"] == int(self.df["region"].eq("North").sum()))
+
         filters = [
             ("eq", "region", "North", self.df["region"].eq("North")),
             ("contains", "note", "alp", self.df["note"].str.contains("alp", case=False, na=False)),
@@ -207,10 +237,35 @@ class Audit:
             for key, expected in expected_map.items():
                 self.ok(f"group analysis {region} {key}", close(row[key], expected, 1e-2), f"got {row[key]}, expected {expected}")
 
-        comparison, _ = self.request("group comparison", "/api/group-comparison", {"group_col": "region", "metric_col": "sales", "agg": "mean"})
-        comparison_rows = {r["region"]: r for r in comparison["rows"]}
-        for region, expected in expected_groups.mean().items():
-            self.ok(f"group comparison {region}", close(comparison_rows[region]["value"], expected))
+        comparison_aggs = {
+            "mean": expected_groups.mean,
+            "sum": expected_groups.sum,
+            "count": expected_groups.count,
+            "min": expected_groups.min,
+            "max": expected_groups.max,
+            "median": expected_groups.median,
+            "mode": lambda: expected_groups.apply(lambda s: s.dropna().mode().iloc[0]),
+            "std": expected_groups.std,
+            "variance": expected_groups.var,
+        }
+        for agg, expected_fn in comparison_aggs.items():
+            comparison, _ = self.request(
+                f"group comparison {agg}", "/api/group-comparison",
+                {"group_col": "region", "metric_col": "sales", "agg": agg},
+            )
+            comparison_rows = {r["region"]: r for r in comparison["rows"]}
+            for region, expected in expected_fn().items():
+                self.ok(
+                    f"group comparison {agg} {region}",
+                    close(comparison_rows[region]["value"], expected),
+                )
+
+        singleton, _ = self.request(
+            "group comparison singleton std", "/api/group-comparison",
+            {"group_col": "date", "metric_col": "sales", "agg": "std"},
+        )
+        chart_values = singleton["echarts"]["series"][0]["data"]
+        self.ok("group comparison singleton std JSON", any(v is None for v in chart_values))
 
         contribution, _ = self.request("contribution", "/api/contribution-analysis", {"group_col": "region", "metric_col": "sales"})
         contribution_rows = {r["region"]: r for r in contribution["rows"]}
@@ -224,6 +279,19 @@ class Audit:
         expected_pivot = pd.pivot_table(self.df, index="region", columns="channel", values="sales", aggfunc="sum", fill_value=0)
         expected_pivot_html = expected_pivot.round(4).to_html(classes="panda-table", border=0)
         self.ok("pivot values", pivot["html"] == expected_pivot_html)
+
+        pivot_mode, _ = self.request(
+            "pivot mode", "/api/pivot",
+            {"index": "region", "columns": "channel", "values": "sales", "agg": "mode"},
+        )
+        expected_mode = pd.pivot_table(
+            self.df, index="region", columns="channel", values="sales",
+            aggfunc=lambda s: s.dropna().mode().iloc[0], fill_value=0,
+        )
+        self.ok(
+            "pivot mode values",
+            pivot_mode["html"] == expected_mode.round(4).to_html(classes="panda-table", border=0),
+        )
 
         for normalize in (False, True):
             crosstab, _ = self.request("crosstab", "/api/crosstab", {"row_col": "region", "col_col": "channel", "normalize": normalize})
@@ -336,6 +404,16 @@ class Audit:
         csv_export = self.client.post("/api/export-filtered", json={"format": "csv", "filter_col": "region", "filter_op": "eq", "filter_val": "North"})
         exported = pd.read_csv(io.BytesIO(csv_export.data))
         self.ok("filtered CSV export", csv_export.status_code == 200 and len(exported) == int(self.df["region"].eq("North").sum()))
+        selected_csv = self.client.post(
+            "/api/export-filtered",
+            json={
+                "format": "csv", "columns": ["sales"],
+                "filter_col": "region", "filter_op": "eq", "filter_val": "North",
+            },
+        )
+        selected_export = pd.read_csv(io.BytesIO(selected_csv.data))
+        self.ok("selected-column CSV export columns", selected_export.columns.tolist() == ["sales"])
+        self.ok("selected-column CSV export rows", len(selected_export) == int(self.df["region"].eq("North").sum()))
         xlsx_export = self.client.post("/api/export-filtered", json={"format": "xlsx", "filter_col": "sales", "filter_op": "gt", "filter_val": 100})
         exported_xlsx = pd.read_excel(io.BytesIO(xlsx_export.data))
         self.ok("filtered Excel export", xlsx_export.status_code == 200 and len(exported_xlsx) == int((self.df["sales"] > 100).sum()))

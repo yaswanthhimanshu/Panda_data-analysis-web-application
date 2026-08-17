@@ -671,8 +671,10 @@ table.panda-table td{padding:8px 11px}
           <option value="select">Select Columns</option>
         </select>
       </div>
-      <div id="selColsWrap" style="display:none">
-        <select class="sel-input" id="selColsList" multiple></select>
+      <div id="selColsWrap" class="sel-row" style="display:none">
+        <select class="sel-input" id="selColsList" multiple size="5" onchange="updateColumnSelectionCount()"></select>
+        <button class="workspace-tool" type="button" onclick="applyColumnSelection()">Apply</button>
+        <span class="sel-label" id="selColsCount">0 selected</span>
       </div>
       <div class="workspace-tools">
         <button class="workspace-tool" id="paramsToggleBtn" onclick="toggleParamsPanel()" type="button">
@@ -730,6 +732,7 @@ let S = {
   localStorage:false,
   tableState:{},
   paramsCollapsed:false,
+  selectedCols:null,
 };
 
 const NO_PARAM_OPS=new Set(["overview","data-quality-studio","column-dictionary"]);
@@ -806,6 +809,7 @@ function loadCols(d){
   S.boolCols=d.boolean||[];
   S.candidateKeys=d.candidate_keys||[];
   S.qualityScore=d.quality_score;
+  S.selectedCols=null;
 }
 function updateNav(){
   const links=[];
@@ -901,6 +905,11 @@ function uploadErr(msg){
 function populateSelBar(){
   document.getElementById("selFCol").innerHTML=S.allCols.map(c=>`<option>${c}</option>`).join("");
   document.getElementById("selColsList").innerHTML=S.allCols.map(c=>`<option value="${c}">${c}</option>`).join("");
+  if(S.selectedCols?.length){
+    const selected=new Set(S.selectedCols);
+    Array.from(document.getElementById("selColsList").options).forEach(o=>o.selected=selected.has(o.value));
+  }
+  updateColumnSelectionCount();
 }
 function onRowModeChange(){
   const v=document.getElementById("selRows").value;
@@ -908,17 +917,41 @@ function onRowModeChange(){
   document.getElementById("selRangeWrap").style.display=v==="range"?"flex":"none";
 }
 function onColModeChange(){
-  document.getElementById("selColsWrap").style.display=
-    document.getElementById("selCols").value==="select"?"":"none";
+  const selecting=document.getElementById("selCols").value==="select";
+  document.getElementById("selColsWrap").style.display=selecting?"flex":"none";
+  if(!selecting) applyColumnSelection();
+}
+function updateColumnSelectionCount(){
+  const list=document.getElementById("selColsList");
+  const count=list?list.selectedOptions.length:0;
+  const label=document.getElementById("selColsCount");
+  if(label) label.textContent=`${count} selected`;
+}
+function applyColumnSelection(){
+  const selecting=document.getElementById("selCols").value==="select";
+  const list=document.getElementById("selColsList");
+  const chosen=selecting
+    ? Array.from(list.selectedOptions).map(o=>o.value)
+    : null;
+  if(selecting&&!chosen.length){
+    showToast("Select at least one column.");
+    return;
+  }
+  S.selectedCols=chosen;
+  if(!selecting) Array.from(list.options).forEach(o=>o.selected=false);
+  updateColumnSelectionCount();
+  renderParams(S.currentOp);
+  if(!NO_PARAM_OPS.has(S.currentOp)) runCurrent();
+  showToast(selecting?`Applied ${chosen.length} columns.`:"All columns restored.");
 }
 function getSel(){
   // Build the shared selection payload included with every analysis request.
-  // app.py applies these fields once, in columns -> filter -> range order.
+  // app.py applies these fields once, in filter -> range -> columns order.
   const rm=document.getElementById("selRows").value;
   const cm=document.getElementById("selCols").value; const p={};
   if(rm==="filter"){ p.filter_col=v("selFCol"); p.filter_op=v("selFOp"); p.filter_val=v("selFVal"); }
   else if(rm==="range"){ p.row_start=v("selRS"); p.row_end=v("selRE"); }
-  if(cm==="select") p.columns=Array.from(document.getElementById("selColsList").selectedOptions).map(o=>o.value);
+  if(cm==="select"&&S.selectedCols?.length) p.columns=[...S.selectedCols];
   return p;
 }
 
@@ -951,8 +984,16 @@ function inp(id,label,ph="",type="text"){
   return `<div class="p-group"><span class="p-label">${label}</span>
     <input class="p-input" id="${id}" type="${type}" placeholder="${ph}"/></div>`;
 }
-const NC=()=>S.numCols.length?S.numCols:S.allCols;
-const AC=()=>S.allCols;
+const activeCols=()=>S.selectedCols?.length?S.selectedCols:S.allCols;
+const activeSubset=cols=>{
+  const active=new Set(activeCols());
+  return (cols||[]).filter(c=>active.has(c));
+};
+const NC=()=>activeSubset(S.numCols);
+const AC=()=>activeCols();
+const GC=()=>activeSubset(S.recGroupCols).length?activeSubset(S.recGroupCols):AC();
+const MC=()=>activeSubset(S.recMetricCols).length?activeSubset(S.recMetricCols):NC();
+const DC=()=>activeSubset(S.dateCols).length?activeSubset(S.dateCols):AC();
 
 /* ── Group Analysis Studio: dynamic group levels ────── */
 let glCount=0;
@@ -961,7 +1002,7 @@ function addGroupLevel(){
   const id=`gagl${glCount}`;
   const div=document.createElement("div");
   div.className="group-level"; div.id=id;
-  div.innerHTML=`<select class="p-input ga-group-sel" style="min-width:165px">${S.allCols.map(c=>`<option>${c}</option>`).join("")}</select>
+  div.innerHTML=`<select class="p-input ga-group-sel" style="min-width:165px">${AC().map(c=>`<option>${c}</option>`).join("")}</select>
     <button class="rm-group-btn" onclick="removeGroupLevel('${id}')">✕</button>`;
   document.getElementById("gaGroupLevels").appendChild(div);
   updateGroupRemoveBtns();
@@ -1633,30 +1674,30 @@ function renderParams(op){
       </div>`; break;
     case "group-comparison":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("gcGroup",S.recGroupCols?.length?S.recGroupCols:ac,"Group")}
-        ${buildSelect("gcMetric",S.recMetricCols?.length?S.recMetricCols:nc,"Metric")}
+        ${buildSelect("gcGroup",GC(),"Group")}
+        ${buildSelect("gcMetric",MC(),"Metric")}
         ${buildAggSelect("gcAgg","Aggregation",true)}
         ${runBtn("Compare Groups")}</div>`; break;
     case "contribution-analysis":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("caGroup",S.recGroupCols?.length?S.recGroupCols:ac,"Group")}
-        ${buildSelect("caMetric",S.recMetricCols?.length?S.recMetricCols:nc,"Metric")}
+        ${buildSelect("caGroup",GC(),"Group")}
+        ${buildSelect("caMetric",MC(),"Metric")}
         ${runBtn("Rank Contributors")}</div>`; break;
     case "variance-analysis":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("vaDate",S.dateCols?.length?S.dateCols:ac,"Date Column")}
-        ${buildSelect("vaMetric",S.recMetricCols?.length?S.recMetricCols:nc,"Metric")}
+        ${buildSelect("vaDate",DC(),"Date Column")}
+        ${buildSelect("vaMetric",MC(),"Metric")}
         <div class="p-group"><span class="p-label">Grain</span>
           <select class="p-input" id="vaFreq"><option value="D">Daily</option><option value="W">Weekly</option><option value="M" selected>Monthly</option><option value="Q">Quarterly</option><option value="Y">Yearly</option></select></div>
         <div class="p-group"><span class="p-label">Aggregation</span>
           <select class="p-input" id="vaAgg"><option value="sum" selected>sum</option><option value="mean">mean</option><option value="count">count</option></select></div>
-        ${buildOptionalSelect("vaGroup",S.recGroupCols?.length?S.recGroupCols:ac,"Break Down By","Overall total only")}
+        ${buildOptionalSelect("vaGroup",GC(),"Break Down By","Overall total only")}
         ${runBtn("Compare Periods")}</div>`; break;
     case "time-series-studio":
       P.innerHTML=`<div class="params-form">
-        ${buildSelect("tsDate",S.dateCols?.length?S.dateCols:ac,"Date Column")}
+        ${buildSelect("tsDate",DC(),"Date Column")}
         ${buildOptionalSelect("tsMetric",nc,"Metric","Record count")}
-        ${buildOptionalSelect("tsCat",S.recGroupCols?.length?S.recGroupCols:ac,"Driver Segment","None")}
+        ${buildOptionalSelect("tsCat",GC(),"Driver Segment","None")}
         <div class="p-group"><span class="p-label">Grain</span>
           <select class="p-input" id="tsFreq"><option value="D">Daily</option><option value="W">Weekly</option><option value="M" selected>Monthly</option><option value="Q">Quarterly</option><option value="Y">Yearly</option></select></div>
         <div class="p-group"><span class="p-label">Aggregation</span>
@@ -1749,9 +1790,9 @@ async function runOp(op){
   try{
     let url,body;
     switch(op){
-      case "overview":          url="/api/overview"; body=null; break;
+      case "overview":          url="/api/overview"; body=sel; break;
       case "data-quality-studio": url="/api/data-quality-studio"; body=sel; break;
-      case "column-dictionary": url="/api/column-dictionary"; body=null; break;
+      case "column-dictionary": url="/api/column-dictionary"; body=sel; break;
       case "column-profiler":   url="/api/column-profiler"; body={...sel,column:v("cpCol")}; break;
       case "preview":           url="/api/preview"; body={...sel,mode:v("pvMode")||"head",n:iv("pvN",10)}; break;
       case "value-counts":      url="/api/value-counts"; body={...sel,column:v("vcCol")}; break;
@@ -1772,6 +1813,7 @@ async function runOp(op){
       case "visual-studio":     url="/api/visual-studio"; body={...sel,chart_type:v("vizType")||"auto",x_col:v("vizX"),y_col:v("vizY"),series_col:v("vizSeries"),agg:v("vizAgg")||"mean",bins:iv("vizBins",30)}; break;
       default: R.innerHTML=`<div class="err">Unknown operation.</div>`; return;
     }
+    window._lastSliceParams={...sel};
     const resp = body
       ? await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
       : await fetch(url);
@@ -2016,8 +2058,8 @@ function renderContextPanel(op,d){
 }
 
 function renderQuickStart(){
-  const metric=(S.recMetricCols&&S.recMetricCols[0])||S.numCols[0]||"";
-  const group=(S.recGroupCols&&S.recGroupCols[0])||S.catCols[0]||"";
+  const metric=MC()[0]||NC()[0]||"";
+  const group=activeSubset(S.recGroupCols)[0]||activeSubset(S.catCols)[0]||"";
   const quality=typeof S.qualityScore==="number"?`<p style="color:var(--muted);font-size:13px">Data quality score: <strong style="color:var(--text)">${S.qualityScore}</strong>/100.</p>`:"";
   const ideas=[];
   if(metric&&group)ideas.push(`<button class="btn-export" onclick="jumpToOp('group-analysis')">Compare ${escHtml(metric)} by ${escHtml(group)}</button>`);
