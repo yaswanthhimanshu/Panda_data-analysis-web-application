@@ -45,3 +45,6 @@ desktop.ini
 
 # Render/local deployment metadata
 .render/
+
+# Docs
+docs/

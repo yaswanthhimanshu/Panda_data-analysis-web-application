@@ -2067,9 +2067,16 @@ def export_filtered():
                 vals = [v.strip() for v in str(val).split(",")]
                 df = df[_isin_mask(s, vals)]
             elif op in ("gt", "lt", "gte", "lte"):
-                ops_map = {"gt": ">", "lt": "<", "gte": ">=", "lte": "<="}
-                fv = float(val); num = to_numeric_clean(s)
-                df = df[eval(f"num{ops_map[op]}fv")]
+                fv = float(val)
+                num = to_numeric_clean(s)
+                if op == "gt":
+                    df = df[num > fv]
+                elif op == "lt":
+                    df = df[num < fv]
+                elif op == "gte":
+                    df = df[num >= fv]
+                elif op == "lte":
+                    df = df[num <= fv]
         except Exception:
             continue
     if df.empty:
@@ -2088,4 +2095,4 @@ def export_filtered():
                          as_attachment=True, download_name=f"{fname}.csv")
 
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="127.0.0.1", port=5000)
