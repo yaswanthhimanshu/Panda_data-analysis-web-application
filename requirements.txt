@@ -1,9 +1,10 @@
 flask==3.0.3
-pandas==2.2.2
-numpy==2.0.0
-openpyxl==3.1.4
+pandas==3.0.6
+numpy==2.5.4
+scipy==1.18.1
+openpyxl==3.1.5
 xlrd==2.0.1
-pyarrow==16.1.0
+pyarrow==26.0.0
 tzdata==2026.2
 gunicorn==22.0.0
 python-dotenv==1.0.1

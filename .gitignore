@@ -1,8 +1,12 @@
 # Virtual environments
 .venv/
+.venv*/
 venv/
 env/
 ENV/
+python315-managed/
+.python315/
+.requirements-315.txt
 
 # Python cache and build artifacts
 __pycache__/
@@ -35,6 +39,7 @@ panda_data/
 *.xlsx
 *.xls
 !requirements.txt
+!.python-version
 
 # OS/editor files
 .DS_Store

@@ -139,10 +139,13 @@ saved files return a clear dataset error instead of silently using other data.
 
 ## Running Locally
 
+Panda targets Python 3.15. The current dependency set supports Python 3.11
+through 3.15, but Python 3.15 is the recommended and tested runtime.
+
 ### Desktop application on Windows
 
 ```powershell
-py -m venv .venv
+py -3.15 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-desktop.txt
 ```
@@ -160,7 +163,7 @@ requirements file. Parquet, Feather, Arrow, and ORC require PyArrow; legacy
 ### Browser development server
 
 ```powershell
-py -m venv .venv
+py -3.15 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python app.py
